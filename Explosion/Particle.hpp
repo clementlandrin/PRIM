@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#include "../Explosion/External/glm/glm/glm.hpp"
+#include "External/glm/glm/glm.hpp"
 
 class Cell;
 

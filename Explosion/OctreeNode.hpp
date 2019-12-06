@@ -1,7 +1,7 @@
 #ifndef OCTREENODE_HPP
 #define OCTREENODE_HPP
 
-#include "../Explosion/External/glm/glm/glm.hpp"
+#include "External/glm/glm/glm.hpp"
 
 #include <vector>
 

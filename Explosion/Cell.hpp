@@ -2,7 +2,7 @@
 #ifndef CELL_HPP // include guard
 #define CELL_HPP
 
-#include "../Explosion/External/glm/glm/glm.hpp"
+#include "External/glm/glm/glm.hpp"
 
 #include <vector>
 
