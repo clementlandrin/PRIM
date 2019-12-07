@@ -2,7 +2,7 @@
 
 layout(location=0) out vec4 output_color;
 
-in float fLightPosition;
+in vec4 fLightPosition;
 
 struct LightSource
 {
@@ -12,5 +12,5 @@ struct LightSource
 };
 
 void main() {
-  output_color = vec4(1.0);
+  output_color = vec4(fLightPosition);
 }

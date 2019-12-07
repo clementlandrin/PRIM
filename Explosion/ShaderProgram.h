@@ -24,7 +24,7 @@ public:
 
 	static inline void set(const std::string & name, const glm::vec2 & value, const GLuint id) { glUniform2fv(getLocation(name.c_str(), id), 1, glm::value_ptr(value)); }
 
-	static inline void set(const std::string & name, const glm::vec3 & value, const GLuint id) { glUniform3fv(getLocation(name.c_str(), id), 1, glm::value_ptr(value)); }
+	static inline void set(const std::string & name, const glm::vec3 & value, const GLuint id) { glUniform3fv(getLocation(name.c_str(), id), 1, &value[0]); }
 
 	static inline void set(const std::string & name, const glm::vec4 & value, const GLuint id) { glUniform4fv(getLocation(name.c_str(), id), 1, glm::value_ptr(value)); }
 

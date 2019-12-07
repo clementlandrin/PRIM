@@ -26,6 +26,8 @@ std::vector<float> squarePositions;
 
 GLuint m_vboID;
 GLuint m_squareVboID;
+GLuint m_squareNormalVBO;
+
 GLuint particleProgramID;
 GLuint lightingProgramID;
 
@@ -312,12 +314,13 @@ void render()
 
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 
-	ShaderProgram::set("lightPosition", 0.0f, lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("lightPosition", glm::vec3(0.0), lightingProgramID); TEST_OPENGL_ERROR();
 
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_ARRAY_BUFFER, 0, squarePositions.size() * sizeof(float), &(squarePositions[0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+
 	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()); TEST_OPENGL_ERROR();
 
 	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
