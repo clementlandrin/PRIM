@@ -10,8 +10,26 @@
 #include <sstream>
 #include <vector>
 
+#include "External/glm/glm/glm.hpp"
+#include "External/glm/glm/gtc/type_ptr.hpp"
+
 class ShaderProgram {
 public:
+
+	static inline GLuint getLocation(const std::string & name, const GLuint id) { return glGetUniformLocation(id, name.c_str()); }
+
+	static inline void set(const std::string & name, float value, const GLuint id) { glUniform1f(getLocation(name.c_str(), id), value); }
+
+	static inline void set(const std::string & name, int value, const GLuint id) { glUniform1i(getLocation(name.c_str(), id), value); }
+
+	static inline void set(const std::string & name, const glm::vec2 & value, const GLuint id) { glUniform2fv(getLocation(name.c_str(), id), 1, glm::value_ptr(value)); }
+
+	static inline void set(const std::string & name, const glm::vec3 & value, const GLuint id) { glUniform3fv(getLocation(name.c_str(), id), 1, glm::value_ptr(value)); }
+
+	static inline void set(const std::string & name, const glm::vec4 & value, const GLuint id) { glUniform4fv(getLocation(name.c_str(), id), 1, glm::value_ptr(value)); }
+
+	static inline void set(const std::string & name, const glm::mat4 & value, const GLuint id) { glUniformMatrix4fv(getLocation(name.c_str(), id), 1, GL_FALSE, glm::value_ptr(value)); }
+
 	static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_file_path) {
 
 		// Create the shaders

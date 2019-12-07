@@ -26,7 +26,21 @@ std::vector<float> squarePositions;
 
 GLuint m_vboID;
 GLuint m_squareVboID;
-GLuint programID;
+GLuint particleProgramID;
+GLuint lightingProgramID;
+
+#define TEST_OPENGL_ERROR()                                                             \
+  do {		  							\
+    GLenum err = glGetError(); 					                        \
+    if (err != GL_NO_ERROR) std::cerr << "OpenGL ERROR! " << __LINE__ << std::endl;      \
+  } while(0)
+
+struct LightSource
+{
+	glm::vec3 position;
+	glm::vec3 color;
+	float intensity;
+};
 
 void updatePositions()
 {
@@ -47,15 +61,15 @@ void initPositions()
 
 void initBuffer()
 {
-	glGenBuffers(1, &m_vboID);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vboID);
-	glBufferData(GL_ARRAY_BUFFER, vertexPositions.size() * sizeof(float), &(vertexPositions[0]), GL_DYNAMIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glGenBuffers(1, &m_vboID); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_vboID); TEST_OPENGL_ERROR();
+	glBufferData(GL_ARRAY_BUFFER, vertexPositions.size() * sizeof(float), &(vertexPositions[0]), GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
 
-	glGenBuffers(1, &m_squareVboID);
-	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID);
-	glBufferData(GL_ARRAY_BUFFER, squarePositions.size() * sizeof(float), &(squarePositions[0]), GL_STATIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glGenBuffers(1, &m_squareVboID); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
+	glBufferData(GL_ARRAY_BUFFER, squarePositions.size() * sizeof(float), &(squarePositions[0]), GL_STATIC_DRAW); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
 void initFluid()
@@ -231,7 +245,7 @@ void createSquare()
 	int vertexPerFace = 2 * 3 * 3;
 	squarePositions.resize(6 * vertexPerFace);
 
-	float squareSize = 2.0f;
+	float squareSize = 1.0f;
 	bottomFace(0 * vertexPerFace, squareSize);
 
 	leftFace(vertexPerFace, squareSize);
@@ -254,16 +268,17 @@ int init(int argc, char **argv)
 {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-	glutInitWindowSize(720, 1024);
-	glutCreateWindow(argv[0]);
-	glutReshapeWindow(1024, 720);
+	glutInitWindowSize(720, 1024); TEST_OPENGL_ERROR();
+	glutCreateWindow(argv[0]); TEST_OPENGL_ERROR();
+	glutReshapeWindow(1024, 720); TEST_OPENGL_ERROR();
 	glPointSize(3.0);
 	if (glewInit() != GLEW_OK)
 	{
 		return 1;
 	}
-	glCullFace(GL_BACK);
-	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST); TEST_OPENGL_ERROR();
+	glCullFace(GL_BACK); TEST_OPENGL_ERROR();
+	glEnable(GL_CULL_FACE); TEST_OPENGL_ERROR();
 	initFluid();
 	initPositions();
 	initScene();
@@ -281,27 +296,33 @@ void render()
 {
 	update();
 	
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); TEST_OPENGL_ERROR();
 
-	glUseProgram(programID);
+	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
 
-	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vboID);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, vertexPositions.size() * sizeof(float), &(vertexPositions[0]));
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-	glDrawArrays(GL_POINTS, 0, vertexPositions.size());
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_vboID); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, vertexPositions.size() * sizeof(float), &(vertexPositions[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+	glDrawArrays(GL_POINTS, 0, vertexPositions.size()); TEST_OPENGL_ERROR();
 
-	glDisableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
 
-	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, squarePositions.size() * sizeof(float), &(squarePositions[0]));
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size());
+	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 
-	glDisableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	ShaderProgram::set("lightPosition", 0.0f, lightingProgramID); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, squarePositions.size() * sizeof(float), &(squarePositions[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()); TEST_OPENGL_ERROR();
+
+	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
 
 	glutSwapBuffers();
 
@@ -310,7 +331,7 @@ void render()
 
 void clear()
 {
-	glDeleteBuffers(1, &m_vboID);
+	glDeleteBuffers(1, &m_vboID); TEST_OPENGL_ERROR();
 	delete fluid;
 }
 
@@ -321,8 +342,9 @@ int main(int argc, char **argv) {
 	}
 
 	// Create and compile our GLSL program from the shaders
-	programID = ShaderProgram::LoadShaders("Resources/vertex.shd", "Resources/fragment.shd");
-	
+	particleProgramID = ShaderProgram::LoadShaders("Resources/vertex.shd", "Resources/fragment.shd");
+	lightingProgramID = ShaderProgram::LoadShaders("Resources/lighting_vertex.shd", "Resources/lighting_fragment.shd");
+
 	glutDisplayFunc(render);
 	glutMainLoop();
 
