@@ -2,7 +2,9 @@
 
 layout(location=0) out vec4 output_color;
 
+in vec4 fPosition;
 in vec4 fLightPosition;
+in vec4 fNormal;
 
 struct LightSource
 {
@@ -12,5 +14,7 @@ struct LightSource
 };
 
 void main() {
-  output_color = vec4(fLightPosition);
+  vec3 wi = -normalize(fPosition.xyz - fLightPosition.xyz);
+  vec3 wo = normalize(-fPosition.xyz);
+  output_color = vec4(dot(fNormal.xyz,wi));
 }

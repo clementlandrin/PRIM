@@ -6,6 +6,8 @@ layout(location=1) in vec3 normal;
 uniform vec3 lightPosition;
 
 out vec4 fLightPosition;
+out vec4 fNormal;
+out vec4 fPosition;
 
 mat4 model_view_matrix = mat4(
 			      0.57735, -0.33333, 0.57735, 0.00000,
@@ -19,6 +21,8 @@ mat4 projection_matrix = mat4(
 			      0.00000, 0.00000, -10.00100, 0.00000);
 
 void main() {
-  gl_Position = projection_matrix * model_view_matrix * vec4(position, 1.0);
+  fPosition = projection_matrix * model_view_matrix * vec4(position, 1.0);
+  gl_Position = fPosition;
+  fNormal = normalize(projection_matrix * model_view_matrix * vec4(normal, 1.0));
   fLightPosition = projection_matrix * model_view_matrix * vec4(lightPosition, 1.0);
 }

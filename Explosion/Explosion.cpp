@@ -23,10 +23,12 @@ Fluid* fluid;
 
 std::vector<float> vertexPositions;
 std::vector<float> squarePositions;
+std::vector<float> squareNormals;
 
 GLuint m_vboID;
 GLuint m_squareVboID;
 GLuint m_squareNormalVBO;
+GLuint m_vao;
 
 GLuint particleProgramID;
 GLuint lightingProgramID;
@@ -68,10 +70,27 @@ void initBuffer()
 	glBufferData(GL_ARRAY_BUFFER, vertexPositions.size() * sizeof(float), &(vertexPositions[0]), GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
 
-	glGenBuffers(1, &m_squareVboID); TEST_OPENGL_ERROR();
+	glCreateBuffers(1, &m_squareVboID); // Generate a GPU buffer to store the positions of the vertices
+	size_t vertexBufferSize = sizeof(float) * squarePositions.size(); // Gather the size of the buffer from the CPU-side vector
+	glNamedBufferStorage(m_squareVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
+	glNamedBufferSubData(m_squareVboID, 0, vertexBufferSize, squarePositions.data()); // Fill the data store from a CPU array
+
+	glCreateBuffers(1, &m_squareNormalVBO); // Same for normal
+	glNamedBufferStorage(m_squareNormalVBO, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
+	glNamedBufferSubData(m_squareNormalVBO, 0, vertexBufferSize, squareNormals.data());
+
+	glCreateVertexArrays(1, &m_vao);  TEST_OPENGL_ERROR();// Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
+	glBindVertexArray(m_vao); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
-	glBufferData(GL_ARRAY_BUFFER, squarePositions.size() * sizeof(float), &(squarePositions[0]), GL_STATIC_DRAW); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_squareNormalVBO); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
+
+	glBindVertexArray(0); TEST_OPENGL_ERROR(); // Desactive the VAO just created. Will be activated at rendering time.
 }
 
 void initFluid()
@@ -105,6 +124,13 @@ void bottomFace(int offset, float size)
 	squarePositions[15 + offset] = 1.0f * size;
 	squarePositions[16 + offset] = -1.0f * size;
 	squarePositions[17 + offset] = 1.0f * size;
+
+	for (int i = 0; i < 6; i++)
+	{
+		squareNormals[3 * i + offset] = 0.0f;
+		squareNormals[3 * i + offset + 1] = 1.0f;
+		squareNormals[3 * i + offset + 2] = 0.0f;
+	}
 }
 
 void leftFace(int offset, float size)
@@ -132,6 +158,13 @@ void leftFace(int offset, float size)
 	squarePositions[15 + offset] = -1.0f * size;
 	squarePositions[16 + offset] = -1.0f * size;
 	squarePositions[17 + offset] = 1.0f * size;
+
+	for (int i = 0; i < 6; i++)
+	{
+		squareNormals[3 * i + offset] = 1.0f;
+		squareNormals[3 * i + offset + 1] = 0.0f;
+		squareNormals[3 * i + offset + 2] = 0.0f;
+	}
 }
 
 void rightFace(int offset, float size)
@@ -159,6 +192,13 @@ void rightFace(int offset, float size)
 	squarePositions[15 + offset] = 1.0f * size;
 	squarePositions[16 + offset] = -1.0f * size;
 	squarePositions[17 + offset] = 1.0f * size;
+
+	for (int i = 0; i < 6; i++)
+	{
+		squareNormals[3 * i + offset] = -1.0f;
+		squareNormals[3 * i + offset + 1] = 0.0f;
+		squareNormals[3 * i + offset + 2] = 0.0f;
+	}
 }
 
 void topFace(int offset, float size)
@@ -186,6 +226,13 @@ void topFace(int offset, float size)
 	squarePositions[15 + offset] = 1.0f * size;
 	squarePositions[16 + offset] = 1.0f * size;
 	squarePositions[17 + offset] = 1.0f * size;
+
+	for (int i = 0; i < 6; i++)
+	{
+		squareNormals[3 * i + offset] = 0.0f;
+		squareNormals[3 * i + offset + 1] = -1.0f;
+		squareNormals[3 * i + offset + 2] = 0.0f;
+	}
 }
 
 void backFace(int offset, float size)
@@ -213,6 +260,13 @@ void backFace(int offset, float size)
 	squarePositions[15 + offset] = 1.0f * size;
 	squarePositions[16 + offset] = 1.0f * size;
 	squarePositions[17 + offset] = -1.0f * size;
+
+	for (int i = 0; i < 6; i++)
+	{
+		squareNormals[3 * i + offset] = 0.0f;
+		squareNormals[3 * i + offset + 1] = 0.0f;
+		squareNormals[3 * i + offset + 2] = 1.0f;
+	}
 }
 
 void frontFace(int offset, float size)
@@ -240,12 +294,20 @@ void frontFace(int offset, float size)
 	squarePositions[15 + offset] = -1.0f * size;
 	squarePositions[16 + offset] = 1.0f * size;
 	squarePositions[17 + offset] = 1.0f * size;
+
+	for (int i = 0; i < 6; i++)
+	{
+		squareNormals[3 * i + offset] = 0.0f;
+		squareNormals[3 * i + offset + 1] = 0.0f;
+		squareNormals[3 * i + offset + 2] = -1.0f;
+	}
 }
 
 void createSquare()
 {
 	int vertexPerFace = 2 * 3 * 3;
 	squarePositions.resize(6 * vertexPerFace);
+	squareNormals.resize(6 * vertexPerFace);
 
 	float squareSize = 1.0f;
 	bottomFace(0 * vertexPerFace, squareSize);
@@ -270,9 +332,9 @@ int init(int argc, char **argv)
 {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-	glutInitWindowSize(720, 1024); TEST_OPENGL_ERROR();
 	glutCreateWindow(argv[0]); TEST_OPENGL_ERROR();
-	glutReshapeWindow(1024, 720); TEST_OPENGL_ERROR();
+	//glutInitWindowSize(1024, 1024); TEST_OPENGL_ERROR();
+	glutReshapeWindow(1024, 1024); TEST_OPENGL_ERROR();
 	glPointSize(3.0);
 	if (glewInit() != GLEW_OK)
 	{
@@ -314,18 +376,26 @@ void render()
 
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 
-	ShaderProgram::set("lightPosition", glm::vec3(0.0), lightingProgramID); TEST_OPENGL_ERROR();
-
+	ShaderProgram::set("lightPosition", glm::vec3(0.0, 0.0, 0.0), lightingProgramID); TEST_OPENGL_ERROR();
+	glBindVertexArray(m_vao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_ARRAY_BUFFER, 0, squarePositions.size() * sizeof(float), &(squarePositions[0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
 
+	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_squareNormalVBO); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, squareNormals.size() * sizeof(float), &(squareNormals[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * 0, (void*)0); TEST_OPENGL_ERROR();
+
 	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()); TEST_OPENGL_ERROR();
 
 	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	/*glBindVertexArray(m_vao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
+	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()); TEST_OPENGL_ERROR(); // Call for rendering: stream the current GPU geometry through the current GPU program
 	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();*/
 
 	glutSwapBuffers();
 
