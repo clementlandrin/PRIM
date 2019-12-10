@@ -332,7 +332,7 @@ void createSquare()
 	squarePositions.resize(6 * vertexPerFace);
 	squareNormals.resize(6 * vertexPerFace);
 
-	float squareSize = 1.0f;
+	float squareSize = 0.5f;
 	bottomFace(0 * vertexPerFace, squareSize);
 
 	leftFace(vertexPerFace, squareSize);
@@ -408,7 +408,7 @@ void render()
 	glBindBuffer(GL_ARRAY_BUFFER, m_vboID); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_ARRAY_BUFFER, 0, vertexPositions.size() * sizeof(float), &(vertexPositions[0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
-	glDrawArrays(GL_POINTS, 0, vertexPositions.size()); TEST_OPENGL_ERROR();
+	glDrawArrays(GL_POINTS, 0, vertexPositions.size()/3); TEST_OPENGL_ERROR();
 
 	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
@@ -418,14 +418,14 @@ void render()
 
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 
-	for (int i = 0; i < PARTICLE_NUMBER; i++)
+	for (int i = 0; i < vertexPositions.size()/3; i++)
 	{
 		lightSources[i].position = glm::vec4(vertexPositions[3 * i], vertexPositions[3 * i + 1], vertexPositions[3 * i + 2], 1.0);
 		lightSources[i].color_and_intensity = glm::vec4(1.0);
 	}
 
 	glBindBuffer(GL_UNIFORM_BUFFER, particleUBO);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, PARTICLE_NUMBER * sizeof(LightSource), &(lightSources[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, vertexPositions.size() / 3 * sizeof(LightSource), &(lightSources[0])); TEST_OPENGL_ERROR();
 
 	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock");
 	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0);
@@ -443,7 +443,7 @@ void render()
 	glBufferSubData(GL_ARRAY_BUFFER, 0, squareNormals.size() * sizeof(float), &(squareNormals[0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * 0, (void*)0); TEST_OPENGL_ERROR();
 
-	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()); TEST_OPENGL_ERROR();
+	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()/3); TEST_OPENGL_ERROR();
 
 	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
