@@ -8,23 +8,34 @@ struct LightSource
 	vec4 color_and_intensity;
 };
 
+uniform mat4 model_view_matrix;
+uniform mat4 projection_matrix;
+
 in vec4 fPosition;
 in vec4 fNormal;
 
-in LightSource fLightSources[12];
+// Arrays in a UBO must use a constant expression for their size.
+const int MY_ARRAY_SIZE = 128;
+
+// The name of the block is used for finding the index location only
+layout (std140, binding = 0) uniform lightSourcesBlock {
+  LightSource myArray [MY_ARRAY_SIZE]; // This is the important name (in the shader).
+};
 
 float computeDiffuseFromLight(vec3 lightPosition)
 {
-  vec3 wi = normalize(fPosition.xyz - lightPosition);
-  return abs(dot(fNormal.xyz, wi));
+  vec3 wi = normalize(fPosition.xyz - lightPosition.xyz);
+  return max(-dot(fNormal.xyz, wi), 0.0);
 }
 
 void main() {
   vec3 totalColor = vec3(0.0);
-  for (int i = 0; i < 12; i++)
+  for (int i = 0; i < MY_ARRAY_SIZE; i++)
   {
-      totalColor = totalColor + vec3(computeDiffuseFromLight(fLightSources[i].position.xyz));
+      totalColor = totalColor + vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
   }
-  totalColor = totalColor / 12.0;
+  totalColor = totalColor / float(MY_ARRAY_SIZE);
+
+  vec3 wi = normalize(fPosition.xyz - (model_view_matrix * myArray[0].position).xyz);
   output_color = vec4(totalColor, 1.0);
 }

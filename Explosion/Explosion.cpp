@@ -17,7 +17,7 @@
 
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 12
+#define PARTICLE_NUMBER 128
 #define FLUID_DIMENSION 0.01
 
 struct LightSource
@@ -26,6 +26,17 @@ struct LightSource
 	glm::vec4 color_and_intensity;
 };
 
+glm::mat4 model_view_matrix = glm::mat4(
+	0.57735, -0.33333, 0.57735, 0.00000,
+	0.00000, 0.66667, 0.57735, 0.00000,
+	-0.57735, -0.33333, 0.57735, 0.00000,
+	0.00000, 0.00000, -17, 1.00000);
+glm::mat4 projection_matrix = glm::mat4(
+	15.00000, 0.00000, 0.00000, 0.00000,
+	0.00000, 15.00000, 0.00000, 0.00000,
+	0.00000, 0.00000, -1.00020, -1.00000,
+	0.00000, 0.00000, -10.00100, 0.00000);
+
 Fluid* fluid;
 
 std::vector<float> vertexPositions;
@@ -33,6 +44,8 @@ std::vector<float> squarePositions;
 std::vector<float> squareNormals;
 
 GLuint m_vboID;
+GLuint particleUBO;
+
 GLuint m_squareVboID;
 GLuint m_squareNormalVBO;
 GLuint m_vao;
@@ -72,6 +85,8 @@ void initBuffer()
 	glBufferData(GL_ARRAY_BUFFER, vertexPositions.size() * sizeof(float), &(vertexPositions[0]), GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
 
+	///////////////////////////////////////
+
 	glCreateBuffers(1, &m_squareVboID); // Generate a GPU buffer to store the positions of the vertices
 	size_t vertexBufferSize = sizeof(float) * squarePositions.size(); // Gather the size of the buffer from the CPU-side vector
 	glNamedBufferStorage(m_squareVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
@@ -93,6 +108,12 @@ void initBuffer()
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
 
 	glBindVertexArray(0); TEST_OPENGL_ERROR(); // Desactive the VAO just created. Will be activated at rendering time.
+
+	////////////////////////////////
+	glGenBuffers(1, &particleUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, particleUBO);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * PARTICLE_NUMBER, NULL, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 void initFluid()
@@ -330,6 +351,18 @@ void initScene()
 	createSquare();
 }
 
+void initShaders()
+{
+	// Create and compile our GLSL program from the shaders
+	particleProgramID = ShaderProgram::LoadShaders("Resources/vertex.shd", "Resources/fragment.shd");
+	lightingProgramID = ShaderProgram::LoadShaders("Resources/lighting_vertex.shd", "Resources/lighting_fragment.shd");
+
+	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("model_view_matrix", model_view_matrix, lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("projection_matrix", projection_matrix, lightingProgramID); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+}
+
 int init(int argc, char **argv)
 {
 	glutInit(&argc, argv);
@@ -353,6 +386,7 @@ int init(int argc, char **argv)
 	initPositions();
 	initScene();
 	initBuffer();
+	initShaders();
 	return 0;
 }
 
@@ -380,16 +414,23 @@ void render()
 	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
 	glUseProgram(0); TEST_OPENGL_ERROR();
 
+	////////////////////////////////////////////////////////////////
+
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 
 	for (int i = 0; i < PARTICLE_NUMBER; i++)
 	{
 		lightSources[i].position = glm::vec4(vertexPositions[3 * i], vertexPositions[3 * i + 1], vertexPositions[3 * i + 2], 1.0);
 		lightSources[i].color_and_intensity = glm::vec4(1.0);
-		ShaderProgram::set("lightSources[" + std::to_string(i) + "].position", lightSources[i].position, lightingProgramID); TEST_OPENGL_ERROR();
-		ShaderProgram::set("lightSources["+std::to_string(i)+"].color_and_intensity", lightSources[i].color_and_intensity, lightingProgramID); TEST_OPENGL_ERROR();
 	}
 
+	glBindBuffer(GL_UNIFORM_BUFFER, particleUBO);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, PARTICLE_NUMBER * sizeof(LightSource), &(lightSources[0])); TEST_OPENGL_ERROR();
+
+	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock");
+	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, particleUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	glBindVertexArray(m_vao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
@@ -427,10 +468,6 @@ int main(int argc, char **argv) {
 	{
 		return 1;
 	}
-
-	// Create and compile our GLSL program from the shaders
-	particleProgramID = ShaderProgram::LoadShaders("Resources/vertex.shd", "Resources/fragment.shd");
-	lightingProgramID = ShaderProgram::LoadShaders("Resources/lighting_vertex.shd", "Resources/lighting_fragment.shd");
 
 	glutDisplayFunc(render);
 	glutMainLoop();
