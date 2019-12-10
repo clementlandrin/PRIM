@@ -2,6 +2,7 @@
 //
 
 #include <iostream>
+#include <string> 
 #pragma comment (lib, "glew32s.lib")
 #define GLEW_STATIC
 #include <GL/glew.h>
@@ -16,8 +17,14 @@
 
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 1000
+#define PARTICLE_NUMBER 12
 #define FLUID_DIMENSION 0.01
+
+struct LightSource
+{
+	glm::vec4 position;
+	glm::vec4 color_and_intensity;
+};
 
 Fluid* fluid;
 
@@ -33,18 +40,13 @@ GLuint m_vao;
 GLuint particleProgramID;
 GLuint lightingProgramID;
 
+LightSource lightSources[PARTICLE_NUMBER];
+
 #define TEST_OPENGL_ERROR()                                                             \
   do {		  							\
     GLenum err = glGetError(); 					                        \
     if (err != GL_NO_ERROR) std::cerr << "OpenGL ERROR! " << __LINE__ << std::endl;      \
   } while(0)
-
-struct LightSource
-{
-	glm::vec4 position;
-	glm::vec3 color;
-	float intensity;
-};
 
 void updatePositions()
 {
@@ -340,6 +342,10 @@ int init(int argc, char **argv)
 	{
 		return 1;
 	}
+
+	GLint max;
+	glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &max);
+	std::cout <<  max << std::endl;
 	glEnable(GL_DEPTH_TEST); TEST_OPENGL_ERROR();
 	glCullFace(GL_BACK); TEST_OPENGL_ERROR();
 	glEnable(GL_CULL_FACE); TEST_OPENGL_ERROR();
@@ -376,9 +382,14 @@ void render()
 
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 
-	ShaderProgram::set("lightSource.position", glm::vec4(0.0, 0.0, 0.0, 1.0), lightingProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("lightSource.color", glm::vec3(1.0, 1.0, 1.0), lightingProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("lightSource.instensity", 1.0f, lightingProgramID); TEST_OPENGL_ERROR();
+	for (int i = 0; i < PARTICLE_NUMBER; i++)
+	{
+		lightSources[i].position = glm::vec4(vertexPositions[3 * i], vertexPositions[3 * i + 1], vertexPositions[3 * i + 2], 1.0);
+		lightSources[i].color_and_intensity = glm::vec4(1.0);
+		ShaderProgram::set("lightSources[" + std::to_string(i) + "].position", lightSources[i].position, lightingProgramID); TEST_OPENGL_ERROR();
+		ShaderProgram::set("lightSources["+std::to_string(i)+"].color_and_intensity", lightSources[i].color_and_intensity, lightingProgramID); TEST_OPENGL_ERROR();
+	}
+
 
 	glBindVertexArray(m_vao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();

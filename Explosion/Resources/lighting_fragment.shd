@@ -5,22 +5,26 @@ layout(location=0) out vec4 output_color;
 struct LightSource
 {
 	vec4 position;
-	vec3 color;
-	float intensity;
+	vec4 color_and_intensity;
 };
 
 in vec4 fPosition;
 in vec4 fNormal;
 
-in LightSource fLightSource;
+in LightSource fLightSources[12];
 
 float computeDiffuseFromLight(vec3 lightPosition)
 {
-  vec3 wi = -normalize(fPosition.xyz - lightPosition);
-  return dot(fNormal.xyz, wi);
+  vec3 wi = normalize(fPosition.xyz - lightPosition);
+  return abs(dot(fNormal.xyz, wi));
 }
 
 void main() {
-
-  output_color = vec4(vec3(computeDiffuseFromLight(fLightSource.position.xyz)), 1.0);
+  vec3 totalColor = vec3(0.0);
+  for (int i = 0; i < 12; i++)
+  {
+      totalColor = totalColor + vec3(computeDiffuseFromLight(fLightSources[i].position.xyz));
+  }
+  totalColor = totalColor / 12.0;
+  output_color = vec4(totalColor, 1.0);
 }

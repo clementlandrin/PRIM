@@ -1,20 +1,21 @@
 #version 450
 
+#pragma optionNV unroll all
+
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 normal;
 
 struct LightSource
 {
 	vec4 position;
-	vec3 color;
-	float intensity;
+	vec4 color_and_intensity;
 };
 
-uniform LightSource lightSource;
+uniform LightSource lightSources[12];
 
 out vec4 fNormal;
 out vec4 fPosition;
-out LightSource fLightSource;
+out LightSource fLightSources[12];
 
 mat4 model_view_matrix = mat4(
 			      0.57735, -0.33333, 0.57735, 0.00000,
@@ -31,7 +32,9 @@ void main() {
   fPosition = projection_matrix * model_view_matrix * vec4(position, 1.0);
   gl_Position = fPosition;
   fNormal = normalize(projection_matrix * model_view_matrix * vec4(normal, 1.0));
-  fLightSource.position = projection_matrix * model_view_matrix * lightSource.position;
-  fLightSource.color = lightSource.color;
-  fLightSource.intensity = lightSource.intensity;
+  for (int i = 0; i < 12; i++)
+  {
+	fLightSources[i].position = projection_matrix * model_view_matrix * lightSources[i].position;
+    fLightSources[i].color_and_intensity = lightSources[i].color_and_intensity;
+  }
 }
