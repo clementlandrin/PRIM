@@ -19,6 +19,7 @@
 #define DENSITY 1.0f
 #define PARTICLE_NUMBER 128
 #define FLUID_DIMENSION 0.01
+#define CUBE_SIZE 0.5f
 
 struct LightSource
 {
@@ -63,6 +64,8 @@ LightSource lightSources[PARTICLE_NUMBER];
 
 void updatePositions()
 {
+	vertexPositions.resize(fluid->GetParticles().size() * 3);
+
 	for (int i = 0; i < fluid->GetParticles().size(); i++)
 	{
 		vertexPositions[3 * i] = fluid->GetParticles()[i]->GetPosition().x;
@@ -116,10 +119,15 @@ void initBuffer()
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
+void generateParticles()
+{
+	fluid->GenerateParticlesUniformly(PARTICLE_NUMBER, glm::vec3(0.0), FLUID_DIMENSION, FLUID_DIMENSION, FLUID_DIMENSION);
+}
+
 void initFluid()
 {
 	fluid = new Fluid(VISCOSITY, DENSITY);
-	fluid->GenerateParticlesUniformly(PARTICLE_NUMBER, glm::vec3(0.0), FLUID_DIMENSION, FLUID_DIMENSION, FLUID_DIMENSION);
+	generateParticles();
 }
 
 void bottomFace(int offset, float size)
@@ -332,18 +340,17 @@ void createSquare()
 	squarePositions.resize(6 * vertexPerFace);
 	squareNormals.resize(6 * vertexPerFace);
 
-	float squareSize = 0.5f;
-	bottomFace(0 * vertexPerFace, squareSize);
+	bottomFace(0 * vertexPerFace, CUBE_SIZE);
 
-	leftFace(vertexPerFace, squareSize);
+	leftFace(vertexPerFace, CUBE_SIZE);
 
-	rightFace(2 * vertexPerFace, squareSize);
+	rightFace(2 * vertexPerFace, CUBE_SIZE);
 
-	topFace(3 * vertexPerFace, squareSize);
+	topFace(3 * vertexPerFace, CUBE_SIZE);
 
-	backFace(4 * vertexPerFace, squareSize);
+	backFace(4 * vertexPerFace, CUBE_SIZE);
 
-	frontFace(5 * vertexPerFace, squareSize);
+	frontFace(5 * vertexPerFace, CUBE_SIZE);
 }
 
 void initScene()
@@ -368,7 +375,6 @@ int init(int argc, char **argv)
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
 	glutCreateWindow(argv[0]); TEST_OPENGL_ERROR();
-	//glutInitWindowSize(1024, 1024); TEST_OPENGL_ERROR();
 	glutReshapeWindow(1024, 1024); TEST_OPENGL_ERROR();
 	glPointSize(3.0);
 	if (glewInit() != GLEW_OK)
@@ -388,7 +394,11 @@ int init(int argc, char **argv)
 
 void update()
 {
-	fluid->UpdateParticlePositions(0.01);
+	fluid->UpdateParticlePositions(0.01, CUBE_SIZE);
+	if (fluid->GetParticles().size() == 0)
+	{
+		generateParticles();
+	}
 	updatePositions();
 }
 

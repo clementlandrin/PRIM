@@ -14,6 +14,18 @@ Fluid::~Fluid()
   m_Particles.clear();
 }
 
+bool Fluid::PositionIsInCube(glm::vec3 position, float cubeSize)
+{
+	if (abs(position.x) > cubeSize || abs(position.y) > cubeSize || abs(position.z) > cubeSize)
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
+}
+
 void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, float width, float height, float depth)
 {
   srand (static_cast <unsigned> (time(0)));
@@ -34,11 +46,19 @@ void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, flo
   }
 }
 
-void Fluid::UpdateParticlePositions(float dt)
+void Fluid::UpdateParticlePositions(float dt, float cubeSize)
 {
   for (int i = 0; i < m_Particles.size(); i++)
   {
-    m_Particles[i]->SetPosition(m_Particles[i]->GetPosition() + dt*m_Particles[i]->GetSpeed());
+	glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed();
+	if (PositionIsInCube(newPosition, cubeSize))
+	{
+	  m_Particles[i]->SetPosition(newPosition);
+	}
+	else
+	{
+	  m_Particles.erase(m_Particles.begin() + i);
+	}
   }
 }
 

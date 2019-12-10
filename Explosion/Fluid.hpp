@@ -21,8 +21,10 @@ public:
   ~Fluid();
 
   void GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, float width, float height, float depth);
-  void UpdateParticlePositions(float dt);
-  
+  void UpdateParticlePositions(float dt, float cubeSize);
+ 
+  static bool PositionIsInCube(glm::vec3 position, float cubeSize);
+
   const float GetViscosity();
   const float GetDensity();
   const std::vector<Particle*> GetParticles();
