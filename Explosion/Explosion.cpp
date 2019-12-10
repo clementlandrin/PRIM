@@ -18,7 +18,7 @@
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
 #define PARTICLE_NUMBER 128
-#define FLUID_DIMENSION 0.01
+#define FLUID_DIMENSION 0.01f
 #define CUBE_SIZE 0.5f
 
 struct LightSource
@@ -394,11 +394,13 @@ int init(int argc, char **argv)
 
 void update()
 {
-	fluid->UpdateParticlePositions(0.01, CUBE_SIZE);
+	fluid->UpdateParticlePositions(0.01 * CUBE_SIZE, CUBE_SIZE);
+
 	if (fluid->GetParticles().size() == 0)
 	{
 		generateParticles();
 	}
+
 	updatePositions();
 }
 
