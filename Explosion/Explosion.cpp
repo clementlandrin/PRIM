@@ -41,7 +41,7 @@ GLuint lightingProgramID;
 
 struct LightSource
 {
-	glm::vec3 position;
+	glm::vec4 position;
 	glm::vec3 color;
 	float intensity;
 };
@@ -376,7 +376,10 @@ void render()
 
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 
-	ShaderProgram::set("lightPosition", glm::vec3(0.0, 0.0, 0.0), lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("lightSource.position", glm::vec4(0.0, 0.0, 0.0, 1.0), lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("lightSource.color", glm::vec3(1.0, 1.0, 1.0), lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("lightSource.instensity", 1.0f, lightingProgramID); TEST_OPENGL_ERROR();
+
 	glBindVertexArray(m_vao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
