@@ -112,7 +112,7 @@ void initBuffer()
 	////////////////////////////////
 	glGenBuffers(1, &particleUBO);
 	glBindBuffer(GL_UNIFORM_BUFFER, particleUBO);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * PARTICLE_NUMBER, NULL, GL_DYNAMIC_DRAW);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * PARTICLE_NUMBER + sizeof(int), NULL, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
@@ -375,10 +375,6 @@ int init(int argc, char **argv)
 	{
 		return 1;
 	}
-
-	GLint max;
-	glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &max);
-	std::cout <<  max << std::endl;
 	glEnable(GL_DEPTH_TEST); TEST_OPENGL_ERROR();
 	glCullFace(GL_BACK); TEST_OPENGL_ERROR();
 	glEnable(GL_CULL_FACE); TEST_OPENGL_ERROR();
@@ -425,7 +421,10 @@ void render()
 	}
 
 	glBindBuffer(GL_UNIFORM_BUFFER, particleUBO);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, vertexPositions.size() / 3 * sizeof(LightSource), &(lightSources[0])); TEST_OPENGL_ERROR();
+	int actualNumberOfParticles[1] = { vertexPositions.size() };
+	GLsizei sifeOfArray = vertexPositions.size() / 3 * sizeof(LightSource);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfParticles)); TEST_OPENGL_ERROR();
 
 	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock");
 	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0);
