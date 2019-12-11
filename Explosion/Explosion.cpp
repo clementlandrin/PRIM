@@ -17,9 +17,10 @@
 
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 128
+#define PARTICLE_NUMBER 512
 #define FLUID_DIMENSION 0.01f
 #define CUBE_SIZE 0.5f
+#define RESOLUTION 8
 
 struct LightSource
 {
@@ -43,6 +44,9 @@ Fluid* fluid;
 std::vector<float> vertexPositions;
 std::vector<float> squarePositions;
 std::vector<float> squareNormals;
+
+Cell* scene;
+OctreeNode* octreeRoot;
 
 GLuint m_vboID;
 GLuint particleUBO;
@@ -356,6 +360,8 @@ void createSquare()
 void initScene()
 {
 	createSquare();
+	scene = new Cell(nullptr, glm::vec3(-CUBE_SIZE / 2.0), CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+	scene->SetParticles(fluid->GetParticles());
 }
 
 void initShaders()
@@ -368,6 +374,21 @@ void initShaders()
 	ShaderProgram::set("model_view_matrix", model_view_matrix, lightingProgramID); TEST_OPENGL_ERROR();
 	ShaderProgram::set("projection_matrix", projection_matrix, lightingProgramID); TEST_OPENGL_ERROR();
 	glUseProgram(0); TEST_OPENGL_ERROR();
+}
+
+void initOctree()
+{
+	int power_index = 0;
+	float temp = RESOLUTION;
+
+	while (temp > 1.0 && power_index < 3)
+	{
+		temp = temp / 2.0;
+		power_index = power_index + 1;
+	}
+
+	octreeRoot = new OctreeNode();
+	octreeRoot->BuildOctree(0, power_index - 1, scene);
 }
 
 int init(int argc, char **argv)
@@ -387,6 +408,7 @@ int init(int argc, char **argv)
 	initFluid();
 	initPositions();
 	initScene();
+	initOctree();
 	initBuffer();
 	initShaders();
 	return 0;
@@ -402,6 +424,10 @@ void update()
 	}
 
 	updatePositions();
+
+	scene->SetParticles(fluid->GetParticles());
+	delete octreeRoot;
+	initOctree();
 }
 
 void render()
@@ -458,10 +484,6 @@ void render()
 
 	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
-	/*glBindVertexArray(m_vao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
-	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()); TEST_OPENGL_ERROR(); // Call for rendering: stream the current GPU geometry through the current GPU program
-	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();*/
 
 	glutSwapBuffers();
 
@@ -471,6 +493,8 @@ void render()
 void clear()
 {
 	glDeleteBuffers(1, &m_vboID); TEST_OPENGL_ERROR();
+	delete scene;
+	delete octreeRoot;
 	delete fluid;
 }
 
