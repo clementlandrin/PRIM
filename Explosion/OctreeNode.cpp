@@ -32,15 +32,18 @@ void OctreeNode::SetIsALeaf(bool isALeaf) { m_IsALeaf = isALeaf; }
 void OctreeNode::SetCell(Cell* cell) { m_Cell = cell; }
 
 void OctreeNode::DeleteChildren()
-{   
-  delete m_Children[0][0][0];
-  delete m_Children[0][0][1];
-  delete m_Children[0][1][0];
-  delete m_Children[0][1][1];
-  delete m_Children[1][0][0];
-  delete m_Children[1][0][1];
-  delete m_Children[1][1][0];
-  delete m_Children[1][1][1];
+{
+  if (m_Children.size() != 0)
+  {
+	delete m_Children[0][0][0];
+	delete m_Children[0][0][1];
+	delete m_Children[0][1][0];
+	delete m_Children[0][1][1];
+	delete m_Children[1][0][0];
+	delete m_Children[1][0][1];
+	delete m_Children[1][1][0];
+	delete m_Children[1][1][1];
+  }
 }
 
 OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell)
@@ -51,9 +54,8 @@ OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell)
   cell->ComputeEnergy();
   float data = cell->GetEnergy();
 
-	if(depth>maxDepth || !nodePtr->SplitIntoChildren(data))
+	if(depth>maxDepth)
 	{
-    std::cout << "Leaf at depth " << depth << std::endl;
 		nodePtr->SetIsALeaf(true);
 	}
 	else
@@ -201,15 +203,6 @@ void OctreeNode::BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell)
       }
     }
   }
-}
-
-bool OctreeNode::SplitIntoChildren(float data)
-{
-	if(m_Cell->GetParticles().size() != 0 && data > 1.1)
-  {
-    return true;
-  }
-  return false;
 }
 
 void OctreeNode::AllocateChildren()

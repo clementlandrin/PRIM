@@ -28,7 +28,6 @@ private:
   bool m_IsALeaf;
 
   void BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell);
-  bool SplitIntoChildren(float data);
   void PushParticlesInChildrenCells(Cell* cell_left_bottom_front, Cell* cell_right_bottom_front, 
                                     Cell* cell_left_top_front, Cell* cell_right_top_front,
                                     Cell* cell_left_bottom_back, Cell* cell_right_bottom_back,
