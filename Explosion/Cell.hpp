@@ -25,6 +25,7 @@ public:
   	const float GetCellDepth();
   	const float GetEnergy();
 	const Cell* GetParent();
+	const glm::vec3 ComputeCenter();
 
 	void SetParticles(std::vector<Particle*> particles);
 	void SetPosition(glm::vec3 position);

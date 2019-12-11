@@ -74,6 +74,11 @@ const Cell* Cell::GetParent()
   return m_Parent;
 }
 
+const glm::vec3 Cell::ComputeCenter()
+{
+	return glm::vec3(m_Position[0] + m_CellWidth / 2.0, m_Position[1] + m_CellHeight / 2.0, m_Position[2] + m_CellDepth / 2.0);
+}
+
 void Cell::SetParticles(std::vector<Particle*> particles)
 {
   m_Particles = particles;
