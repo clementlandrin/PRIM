@@ -2,10 +2,9 @@
 
 #include "Cell.hpp"
 
-RegularGrid::RegularGrid(int resolution, glm::vec3 origin, glm::vec3 size)
+RegularGrid::RegularGrid(int resolution, glm::vec3 size)
 {
 	SetResolution(resolution);
-	SetOrigin(origin);
 	SetSize(size);
 	
 	m_Cells.resize(resolution);
@@ -17,7 +16,7 @@ RegularGrid::RegularGrid(int resolution, glm::vec3 origin, glm::vec3 size)
 			m_Cells[i][j].resize(resolution);
 			for (int k = 0; k < resolution; k++)
 			{
-				glm::vec3 position = glm::vec3(origin[0] + size[0] / resolution * i, origin[1] + size[1] / resolution * j, origin[2] + size[2] / resolution * k);
+				glm::vec3 position = glm::vec3(size[0] / resolution * i - size[0] / 2.0, size[1] / resolution * j - size[1] / 2.0, size[2] / resolution * k - size[2] / 2.0);
 				Cell* cell = new Cell(nullptr, position, size[0]/resolution, size[1]/resolution, size[2]/resolution);
 				m_Cells[i][j][k] = cell;
 			}
@@ -40,9 +39,7 @@ RegularGrid::~RegularGrid()
 }
 
 glm::vec3 RegularGrid::GetSize() { return m_Size; }
-glm::vec3 RegularGrid::GetOrigin() { return m_Origin; }
 int RegularGrid::GetResolution() { return m_Resolution; }
 
 void RegularGrid::SetSize(glm::vec3 size) { m_Size = size; }
-void RegularGrid::SetOrigin(glm::vec3 origin) { m_Origin = origin; }
 void RegularGrid::SetResolution(int resolution) { m_Resolution = resolution; }
