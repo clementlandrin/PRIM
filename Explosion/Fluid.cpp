@@ -57,6 +57,7 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize)
 	}
 	else
 	{
+	  delete m_Particles[i];
 	  m_Particles.erase(m_Particles.begin() + i);
 	}
   }
