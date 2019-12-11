@@ -12,6 +12,7 @@ public:
 	~RegularGrid();
 
 	glm::vec3 GetSize();
+	std::vector<std::vector<std::vector<Cell*>>> GetCells();
 	int GetResolution();
 
 	void SetSize(glm::vec3 size);

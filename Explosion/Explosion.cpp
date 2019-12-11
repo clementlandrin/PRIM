@@ -20,7 +20,9 @@
 #define PARTICLE_NUMBER 512
 #define FLUID_DIMENSION 0.01f
 #define CUBE_SIZE 0.5f
-#define RESOLUTION 8
+#define RESOLUTION 4
+
+int actual_power_of_two_resolution;
 
 struct LightSource
 {
@@ -41,22 +43,29 @@ glm::mat4 projection_matrix = glm::mat4(
 
 Fluid* fluid;
 
-std::vector<float> vertexPositions;
+std::vector<float> particlePositions;
 std::vector<float> squarePositions;
 std::vector<float> squareNormals;
+std::vector<float> cellPositions;
+std::vector<float> cellColorAndIntensity;
 
 Cell* scene;
 OctreeNode* octreeRoot;
 
-GLuint m_vboID;
-GLuint particleUBO;
+GLuint m_particleVboID;
+GLuint m_particleUBO;
 
-GLuint m_squareVboID;
+GLuint m_squarePositionVboID;
 GLuint m_squareNormalVBO;
-GLuint m_vao;
+GLuint m_squareVao;
+
+GLuint m_cellPositionVboID;
+GLuint m_cellColorAndIntensityVboID;
+GLuint m_cellVao;
 
 GLuint particleProgramID;
 GLuint lightingProgramID;
+GLuint cellProgramID;
 
 LightSource lightSources[PARTICLE_NUMBER];
 
@@ -68,46 +77,111 @@ LightSource lightSources[PARTICLE_NUMBER];
 
 void updatePositions()
 {
-	vertexPositions.resize(fluid->GetParticles().size() * 3);
+	particlePositions.resize(fluid->GetParticles().size() * 3);
 
 	for (int i = 0; i < fluid->GetParticles().size(); i++)
 	{
-		vertexPositions[3 * i] = fluid->GetParticles()[i]->GetPosition().x;
-		vertexPositions[3 * i + 1] = fluid->GetParticles()[i]->GetPosition().y;
-		vertexPositions[3 * i + 2] = fluid->GetParticles()[i]->GetPosition().z;
+		particlePositions[3 * i] = fluid->GetParticles()[i]->GetPosition().x;
+		particlePositions[3 * i + 1] = fluid->GetParticles()[i]->GetPosition().y;
+		particlePositions[3 * i + 2] = fluid->GetParticles()[i]->GetPosition().z;
 	}
 }
 
 void initPositions()
 {
-	vertexPositions.resize(fluid->GetParticles().size() * 3);
+	particlePositions.resize(fluid->GetParticles().size() * 3);
 
 	updatePositions();
 }
 
-void initBuffer()
+void initParticleVbo()
 {
-	glGenBuffers(1, &m_vboID); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_vboID); TEST_OPENGL_ERROR();
-	glBufferData(GL_ARRAY_BUFFER, vertexPositions.size() * sizeof(float), &(vertexPositions[0]), GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
+	glGenBuffers(1, &m_particleVboID); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_particleVboID); TEST_OPENGL_ERROR();
+	glBufferData(GL_ARRAY_BUFFER, particlePositions.size() * sizeof(float), &(particlePositions[0]), GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+}
 
-	///////////////////////////////////////
+void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
+{
+	if (shouldAddCellToVector)
+	{
+		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter()[0]);
+		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter()[1]);
+		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter()[2]);
+	}
 
-	glCreateBuffers(1, &m_squareVboID); // Generate a GPU buffer to store the positions of the vertices
+	cellColorAndIntensity.push_back(octreeNode->GetCell()->GetParticles().size());
+	cellColorAndIntensity.push_back(octreeNode->GetCell()->GetParticles().size());
+	cellColorAndIntensity.push_back(octreeNode->GetCell()->GetParticles().size());
+	cellColorAndIntensity.push_back(1.0f);
+}
+
+void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
+{	
+	addCellToCellPositionVector(octreeNode, shouldAddCellToVector);
+
+	if (!octreeNode->GetIsALeaf() && octreeNode->GetDepth() < 3)
+	{
+		std::vector<std::vector<std::vector<OctreeNode*>>> children = octreeNode->GetChildren();
+		UpdateCellVectors(children[0][0][0], shouldAddCellToVector);
+		UpdateCellVectors(children[0][0][1], shouldAddCellToVector);
+		UpdateCellVectors(children[0][1][0], shouldAddCellToVector);
+		UpdateCellVectors(children[0][1][1], shouldAddCellToVector);
+		UpdateCellVectors(children[1][0][0], shouldAddCellToVector);
+		UpdateCellVectors(children[1][0][1], shouldAddCellToVector);
+		UpdateCellVectors(children[1][1][0], shouldAddCellToVector);
+		UpdateCellVectors(children[1][1][1], shouldAddCellToVector);
+	}
+}
+
+void initCellVAO()
+{
+	UpdateCellVectors(octreeRoot, true);
+	glCreateBuffers(1, &m_cellPositionVboID); // Generate a GPU buffer to store the positions of the vertices
+	int numberOfCells = 0;
+	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
+	{
+		numberOfCells += pow(8, i);
+	}
+	size_t positionBufferSize = sizeof(float) * cellPositions.size(); // Gather the size of the buffer from the CPU-side vector
+	glNamedBufferStorage(m_cellPositionVboID, positionBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
+	glNamedBufferSubData(m_cellPositionVboID, 0, positionBufferSize, cellPositions.data()); // Fill the data store from a CPU array
+	size_t colorAndIntensityBufferSize = sizeof(float) * cellColorAndIntensity.size();
+	glCreateBuffers(1, &m_cellColorAndIntensityVboID);
+	glNamedBufferStorage(m_cellColorAndIntensityVboID, colorAndIntensityBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
+	glNamedBufferSubData(m_cellColorAndIntensityVboID, 0, colorAndIntensityBufferSize, cellColorAndIntensity.data());
+
+	glCreateVertexArrays(1, &m_cellVao);  TEST_OPENGL_ERROR();// Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
+	glBindVertexArray(m_cellVao); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_cellPositionVboID); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_cellColorAndIntensityVboID); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
+
+	glBindVertexArray(0); TEST_OPENGL_ERROR(); // Desactive the VAO just created. Will be activated at rendering time.
+}
+
+void initSquareVAO()
+{
+	glCreateBuffers(1, &m_squarePositionVboID); // Generate a GPU buffer to store the positions of the vertices
 	size_t vertexBufferSize = sizeof(float) * squarePositions.size(); // Gather the size of the buffer from the CPU-side vector
-	glNamedBufferStorage(m_squareVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
-	glNamedBufferSubData(m_squareVboID, 0, vertexBufferSize, squarePositions.data()); // Fill the data store from a CPU array
+	glNamedBufferStorage(m_squarePositionVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
+	glNamedBufferSubData(m_squarePositionVboID, 0, vertexBufferSize, squarePositions.data()); // Fill the data store from a CPU array
 
 	glCreateBuffers(1, &m_squareNormalVBO); // Same for normal
 	glNamedBufferStorage(m_squareNormalVBO, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
 	glNamedBufferSubData(m_squareNormalVBO, 0, vertexBufferSize, squareNormals.data());
 
-	glCreateVertexArrays(1, &m_vao);  TEST_OPENGL_ERROR();// Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
-	glBindVertexArray(m_vao); TEST_OPENGL_ERROR();
+	glCreateVertexArrays(1, &m_squareVao);  TEST_OPENGL_ERROR();// Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
+	glBindVertexArray(m_squareVao); TEST_OPENGL_ERROR();
 
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_squarePositionVboID); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
 
 	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
@@ -115,12 +189,31 @@ void initBuffer()
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
 
 	glBindVertexArray(0); TEST_OPENGL_ERROR(); // Desactive the VAO just created. Will be activated at rendering time.
+}
 
-	////////////////////////////////
-	glGenBuffers(1, &particleUBO);
-	glBindBuffer(GL_UNIFORM_BUFFER, particleUBO);
+void initParticleUBO()
+{
+	glGenBuffers(1, &m_particleUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * PARTICLE_NUMBER + sizeof(int), NULL, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void initBuffers()
+{
+	initParticleVbo();
+
+	///////////////////////////////////////
+
+	initCellVAO();
+
+	///////////////////////////////////////
+
+	initSquareVAO();
+
+	////////////////////////////////
+
+	initParticleUBO();
 }
 
 void generateParticles()
@@ -360,7 +453,7 @@ void createSquare()
 void initScene()
 {
 	createSquare();
-	scene = new Cell(nullptr, glm::vec3(-CUBE_SIZE / 2.0), CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+	scene = new Cell(nullptr, glm::vec3(-CUBE_SIZE), 2.0 * CUBE_SIZE, 2.0 * CUBE_SIZE, 2.0 * CUBE_SIZE);
 	scene->SetParticles(fluid->GetParticles());
 }
 
@@ -369,10 +462,21 @@ void initShaders()
 	// Create and compile our GLSL program from the shaders
 	particleProgramID = ShaderProgram::LoadShaders("Resources/vertex.shd", "Resources/fragment.shd");
 	lightingProgramID = ShaderProgram::LoadShaders("Resources/lighting_vertex.shd", "Resources/lighting_fragment.shd");
+	cellProgramID = ShaderProgram::LoadShaders("Resources/cell_vertex.shd", "Resources/cell_fragment.shd");
 
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 	ShaderProgram::set("model_view_matrix", model_view_matrix, lightingProgramID); TEST_OPENGL_ERROR();
 	ShaderProgram::set("projection_matrix", projection_matrix, lightingProgramID); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+
+	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("model_view_matrix", model_view_matrix, particleProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("projection_matrix", projection_matrix, particleProgramID); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+
+	glUseProgram(cellProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("model_view_matrix", model_view_matrix, cellProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("projection_matrix", projection_matrix, cellProgramID); TEST_OPENGL_ERROR();
 	glUseProgram(0); TEST_OPENGL_ERROR();
 }
 
@@ -387,8 +491,9 @@ void initOctree()
 		power_index = power_index + 1;
 	}
 
-	octreeRoot = new OctreeNode();
-	octreeRoot->BuildOctree(0, power_index - 1, scene);
+	actual_power_of_two_resolution = power_index;
+
+	octreeRoot = OctreeNode::BuildOctree(0, power_index - 1, scene);
 }
 
 int init(int argc, char **argv)
@@ -409,7 +514,7 @@ int init(int argc, char **argv)
 	initPositions();
 	initScene();
 	initOctree();
-	initBuffer();
+	initBuffers();
 	initShaders();
 	return 0;
 }
@@ -426,8 +531,91 @@ void update()
 	updatePositions();
 
 	scene->SetParticles(fluid->GetParticles());
-	delete octreeRoot;
-	initOctree();
+
+	octreeRoot->SetCell(scene);
+	octreeRoot->UpdateParticlesInChildrenCells(); // TODO To improve
+
+	cellColorAndIntensity.clear();
+	UpdateCellVectors(octreeRoot, false);
+}
+
+void drawParticlesVBO()
+{
+	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_particleVboID); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, particlePositions.size() * sizeof(float), &(particlePositions[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+	glDrawArrays(GL_POINTS, 0, particlePositions.size() / 3); TEST_OPENGL_ERROR();
+
+	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+}
+
+void drawCubeVAO()
+{
+	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+
+	for (int i = 0; i < particlePositions.size()/3; i++)
+	{
+		lightSources[i].position = glm::vec4(particlePositions[3 * i], particlePositions[3 * i + 1], particlePositions[3 * i + 2], 1.0);
+		lightSources[i].color_and_intensity = glm::vec4(1.0);
+	}
+
+	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO);
+	int actualNumberOfParticles[1] = { particlePositions.size() };
+	GLsizei sifeOfArray = particlePositions.size() / 3 * sizeof(LightSource);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfParticles)); TEST_OPENGL_ERROR();
+
+	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock");
+	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+	glBindVertexArray(m_squareVao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_squarePositionVboID); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, squarePositions.size() * sizeof(float), &(squarePositions[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_squareNormalVBO); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, squareNormals.size() * sizeof(float), &(squareNormals[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+
+	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size() / 3); TEST_OPENGL_ERROR();
+
+	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+}
+
+void drawCellVAO()
+{
+	glUseProgram(cellProgramID); TEST_OPENGL_ERROR();
+
+	glBindVertexArray(m_cellVao); TEST_OPENGL_ERROR();
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_cellPositionVboID); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, cellPositions.size() * sizeof(float), &(cellPositions[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_cellColorAndIntensityVboID); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, cellColorAndIntensity.size() * sizeof(float), &(cellColorAndIntensity[0])); TEST_OPENGL_ERROR();
+	GLintptr offSet = cellPositions.size() * sizeof(float) * 3;
+	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+
+	glDrawArrays(GL_POINTS, 0, cellPositions.size() / 3); TEST_OPENGL_ERROR();
+
+	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
 }
 
 void render()
@@ -436,54 +624,11 @@ void render()
 	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); TEST_OPENGL_ERROR();
 
-	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
+	drawParticlesVBO();
 
-	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_vboID); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_ARRAY_BUFFER, 0, vertexPositions.size() * sizeof(float), &(vertexPositions[0])); TEST_OPENGL_ERROR();
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
-	glDrawArrays(GL_POINTS, 0, vertexPositions.size()/3); TEST_OPENGL_ERROR();
+	drawCubeVAO();
 
-	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();
-
-	////////////////////////////////////////////////////////////////
-
-	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
-
-	for (int i = 0; i < vertexPositions.size()/3; i++)
-	{
-		lightSources[i].position = glm::vec4(vertexPositions[3 * i], vertexPositions[3 * i + 1], vertexPositions[3 * i + 2], 1.0);
-		lightSources[i].color_and_intensity = glm::vec4(1.0);
-	}
-
-	glBindBuffer(GL_UNIFORM_BUFFER, particleUBO);
-	int actualNumberOfParticles[1] = { vertexPositions.size() };
-	GLsizei sifeOfArray = vertexPositions.size() / 3 * sizeof(LightSource);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfParticles)); TEST_OPENGL_ERROR();
-
-	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock");
-	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, particleUBO);
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-	glBindVertexArray(m_vao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
-	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_squareVboID); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_ARRAY_BUFFER, 0, squarePositions.size() * sizeof(float), &(squarePositions[0])); TEST_OPENGL_ERROR();
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
-
-	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_squareNormalVBO); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_ARRAY_BUFFER, 0, squareNormals.size() * sizeof(float), &(squareNormals[0])); TEST_OPENGL_ERROR();
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * 0, (void*)0); TEST_OPENGL_ERROR();
-
-	glDrawArrays(GL_TRIANGLES, 0, squarePositions.size()/3); TEST_OPENGL_ERROR();
-
-	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	drawCellVAO();
 
 	glutSwapBuffers();
 
@@ -492,7 +637,11 @@ void render()
 
 void clear()
 {
-	glDeleteBuffers(1, &m_vboID); TEST_OPENGL_ERROR();
+	glDeleteBuffers(1, &m_particleVboID); TEST_OPENGL_ERROR();
+	glDeleteBuffers(1, &m_squarePositionVboID); TEST_OPENGL_ERROR();
+	glDeleteBuffers(1, &m_squareNormalVBO); TEST_OPENGL_ERROR();
+	glDeleteBuffers(1, &m_squareVao); TEST_OPENGL_ERROR();
+
 	delete scene;
 	delete octreeRoot;
 	delete fluid;

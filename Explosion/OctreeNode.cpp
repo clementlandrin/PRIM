@@ -18,7 +18,6 @@ OctreeNode::OctreeNode(){
 
 OctreeNode::~OctreeNode()
 {
-  delete m_Cell;
   if(!m_IsALeaf)
   {
     DeleteChildren();
@@ -27,9 +26,12 @@ OctreeNode::~OctreeNode()
 
 bool OctreeNode::GetIsALeaf() { return m_IsALeaf; }
 std::vector<std::vector<std::vector<OctreeNode*>>> OctreeNode:: GetChildren() { return m_Children; }
+Cell* OctreeNode::GetCell() { return m_Cell; }
+int OctreeNode::GetDepth() { return m_Depth; }
 
 void OctreeNode::SetIsALeaf(bool isALeaf) { m_IsALeaf = isALeaf; }
 void OctreeNode::SetCell(Cell* cell) { m_Cell = cell; }
+void OctreeNode::SetDepth(int depth) { m_Depth = depth; }
 
 void OctreeNode::DeleteChildren()
 {
@@ -48,7 +50,8 @@ void OctreeNode::DeleteChildren()
 
 OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell)
 {
-	OctreeNode * nodePtr = new OctreeNode();
+  OctreeNode * nodePtr = new OctreeNode();
+  nodePtr->SetDepth(depth);
   nodePtr->SetCell(cell);
 
   cell->ComputeEnergy();
@@ -203,6 +206,36 @@ void OctreeNode::BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell)
       }
     }
   }
+}
+
+void OctreeNode::UpdateParticlesInChildrenCells()
+{
+	if (!m_IsALeaf)
+	{
+		m_Children[LEFT][BOTTOM][FRONT]->GetCell()->GetParticles().clear();
+		m_Children[RIGHT][BOTTOM][FRONT]->GetCell()->GetParticles().clear();
+		m_Children[LEFT][TOP][FRONT]->GetCell()->GetParticles().clear();
+		m_Children[RIGHT][TOP][FRONT]->GetCell()->GetParticles().clear();
+
+		m_Children[LEFT][BOTTOM][BACK]->GetCell()->GetParticles().clear();
+		m_Children[RIGHT][BOTTOM][BACK]->GetCell()->GetParticles().clear();
+		m_Children[LEFT][TOP][BACK]->GetCell()->GetParticles().clear();
+		m_Children[RIGHT][TOP][BACK]->GetCell()->GetParticles().clear();
+
+		PushParticlesInChildrenCells(m_Children[LEFT][BOTTOM][FRONT]->GetCell(), m_Children[RIGHT][BOTTOM][FRONT]->GetCell(),
+									 m_Children[LEFT][TOP][FRONT]->GetCell(), m_Children[RIGHT][TOP][FRONT]->GetCell(), 
+									 m_Children[LEFT][BOTTOM][BACK]->GetCell(), m_Children[RIGHT][BOTTOM][BACK]->GetCell(),
+									 m_Children[LEFT][TOP][BACK]->GetCell(), m_Children[RIGHT][TOP][BACK]->GetCell());
+
+		m_Children[LEFT][BOTTOM][FRONT]->UpdateParticlesInChildrenCells();
+		m_Children[RIGHT][BOTTOM][FRONT]->UpdateParticlesInChildrenCells();
+		m_Children[LEFT][TOP][FRONT]->UpdateParticlesInChildrenCells();
+		m_Children[RIGHT][TOP][FRONT]->UpdateParticlesInChildrenCells();
+		m_Children[LEFT][BOTTOM][BACK]->UpdateParticlesInChildrenCells();
+		m_Children[RIGHT][BOTTOM][BACK]->UpdateParticlesInChildrenCells();
+		m_Children[LEFT][TOP][BACK]->UpdateParticlesInChildrenCells();
+		m_Children[RIGHT][TOP][BACK]->UpdateParticlesInChildrenCells();
+	}
 }
 
 void OctreeNode::AllocateChildren()

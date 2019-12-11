@@ -1,11 +1,7 @@
 #include "Cell.hpp"
 
 #include "Particle.hpp"
-
-Cell::Cell()
-{
-
-}
+#include <iostream>
 
 Cell::Cell(Cell* parent, glm::vec3 position, float width, float height, float depth)
 {
@@ -14,6 +10,14 @@ Cell::Cell(Cell* parent, glm::vec3 position, float width, float height, float de
   m_CellWidth = width;
   m_CellHeight = height;
   m_CellDepth = depth;
+}
+
+Cell::~Cell()
+{
+	if (!m_Parent)
+	{
+		std::cout << "toto 1" << std::endl;
+	}
 }
 
 void Cell::AddParticle(Particle* particle)

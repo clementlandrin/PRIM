@@ -11,8 +11,8 @@ class Particle;
 class Cell
 {
 public:
-	Cell();
 	Cell(Cell* parent, glm::vec3 position, float width, float height, float depth);
+	~Cell();
 
 	void AddParticle(Particle* particle);
 	void EraseParticleAtIndex(int index);

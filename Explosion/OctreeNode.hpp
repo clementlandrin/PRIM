@@ -17,15 +17,20 @@ public:
 	static OctreeNode * BuildOctree(int depth, int maxDepth, Cell* cell);
 
 	bool GetIsALeaf();
+	Cell* GetCell();
 	std::vector<std::vector<std::vector<OctreeNode*>>> GetChildren();
+	int GetDepth();
 
 	void SetIsALeaf(bool isALeaf);
 	void SetCell(Cell* cell);
+	void SetDepth(int depth);
 
+	void UpdateParticlesInChildrenCells();
 private:
   Cell* m_Cell;
   std::vector<std::vector<std::vector<OctreeNode*>>> m_Children;
   bool m_IsALeaf;
+  int m_Depth;
 
   void BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell);
   void PushParticlesInChildrenCells(Cell* cell_left_bottom_front, Cell* cell_right_bottom_front, 

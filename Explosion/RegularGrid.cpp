@@ -40,6 +40,7 @@ RegularGrid::~RegularGrid()
 
 glm::vec3 RegularGrid::GetSize() { return m_Size; }
 int RegularGrid::GetResolution() { return m_Resolution; }
+std::vector<std::vector<std::vector<Cell*>>> RegularGrid::GetCells() { return m_Cells; }
 
 void RegularGrid::SetSize(glm::vec3 size) { m_Size = size; }
 void RegularGrid::SetResolution(int resolution) { m_Resolution = resolution; }
