@@ -37,14 +37,14 @@ void OctreeNode::DeleteChildren()
 {
   if (m_Children.size() != 0)
   {
-	delete m_Children[0][0][0];
-	delete m_Children[0][0][1];
-	delete m_Children[0][1][0];
-	delete m_Children[0][1][1];
-	delete m_Children[1][0][0];
-	delete m_Children[1][0][1];
-	delete m_Children[1][1][0];
-	delete m_Children[1][1][1];
+	delete m_Children[LEFT][BOTTOM][FRONT];
+	delete m_Children[RIGHT][BOTTOM][FRONT];
+	delete m_Children[LEFT][TOP][FRONT];
+	delete m_Children[RIGHT][TOP][FRONT];
+	delete m_Children[LEFT][BOTTOM][BACK];
+	delete m_Children[RIGHT][BOTTOM][BACK];
+	delete m_Children[LEFT][TOP][BACK];
+	delete m_Children[RIGHT][TOP][BACK];
   }
 }
 
@@ -135,7 +135,7 @@ void OctreeNode::BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell)
   m_Children[RIGHT][TOP][BACK]     = BuildOctree(depth+1, maxDepth, cell_right_top_back);
 }
 
-  void OctreeNode::PushParticlesInChildrenCells(Cell* cell_left_bottom_front, Cell* cell_right_bottom_front, 
+void OctreeNode::PushParticlesInChildrenCells(Cell* cell_left_bottom_front, Cell* cell_right_bottom_front, 
                                     Cell* cell_left_top_front, Cell* cell_right_top_front,
                                     Cell* cell_left_bottom_back, Cell* cell_right_bottom_back,
                                     Cell* cell_left_top_back, Cell* cell_right_top_back)
@@ -153,26 +153,25 @@ void OctreeNode::BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell)
       if (particle->GetPosition().y < m_Cell->GetPosition().y + m_Cell->GetCellHeight()/2.0)
       {
         // Left Bottom Front
-        if (particle->GetPosition().z > m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
+        if (particle->GetPosition().z < m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
         {
-          cell_left_bottom_front->AddParticle(particle);
+			cell_left_bottom_front->AddParticle(particle);
         }
         else // Left Bottom Back
         {
-          cell_left_bottom_back->AddParticle(particle);
+			cell_left_bottom_back->AddParticle(particle);
         }
-        
       }
       else // Left Top
       {
         // Left Top Front
-        if (particle->GetPosition().z > m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
+        if (particle->GetPosition().z < m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
         {
-          cell_left_top_front->AddParticle(particle);
+			cell_left_top_front->AddParticle(particle);
         }
         else // Left Top Back
         {
-          cell_left_top_back->AddParticle(particle);
+			cell_left_top_back->AddParticle(particle);
         }
       }
     }
@@ -182,26 +181,25 @@ void OctreeNode::BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell)
       if (particle->GetPosition().y < m_Cell->GetPosition().y + m_Cell->GetCellHeight()/2.0)
       {
         // Right Bottom Front
-        if (particle->GetPosition().z > m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
+        if (particle->GetPosition().z < m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
         {
-          cell_right_bottom_front->AddParticle(particle);
+			cell_right_bottom_front->AddParticle(particle);
         }
         else // Right Bottom Back
         {
-          cell_right_bottom_back->AddParticle(particle);
+			cell_right_bottom_back->AddParticle(particle);
         }
-        
       }
       else // Right Top
       {
         // Right Top Front
-        if (particle->GetPosition().z > m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
+        if (particle->GetPosition().z < m_Cell->GetPosition().z + m_Cell->GetCellDepth()/2.0)
         {
-          cell_right_top_front->AddParticle(particle);
+			cell_right_top_front->AddParticle(particle);
         }
         else // Right Top Back
         {
-          cell_right_top_back->AddParticle(particle);
+			cell_right_top_back->AddParticle(particle);
         }
       }
     }
@@ -212,16 +210,16 @@ void OctreeNode::UpdateParticlesInChildrenCells()
 {
 	if (!m_IsALeaf)
 	{
-		m_Children[LEFT][BOTTOM][FRONT]->GetCell()->GetParticles().clear();
-		m_Children[RIGHT][BOTTOM][FRONT]->GetCell()->GetParticles().clear();
-		m_Children[LEFT][TOP][FRONT]->GetCell()->GetParticles().clear();
-		m_Children[RIGHT][TOP][FRONT]->GetCell()->GetParticles().clear();
-
-		m_Children[LEFT][BOTTOM][BACK]->GetCell()->GetParticles().clear();
-		m_Children[RIGHT][BOTTOM][BACK]->GetCell()->GetParticles().clear();
-		m_Children[LEFT][TOP][BACK]->GetCell()->GetParticles().clear();
-		m_Children[RIGHT][TOP][BACK]->GetCell()->GetParticles().clear();
-
+		m_Children[LEFT][BOTTOM][FRONT]->GetCell()->ClearParticles();
+		m_Children[RIGHT][BOTTOM][FRONT]->GetCell()->ClearParticles();
+		m_Children[LEFT][TOP][FRONT]->GetCell()->ClearParticles();
+		m_Children[RIGHT][TOP][FRONT]->GetCell()->ClearParticles();
+		m_Children[LEFT][BOTTOM][BACK]->GetCell()->ClearParticles();
+		m_Children[RIGHT][BOTTOM][BACK]->GetCell()->ClearParticles();
+		m_Children[LEFT][TOP][BACK]->GetCell()->ClearParticles();
+		m_Children[RIGHT][TOP][BACK]->GetCell()->ClearParticles();
+		
+		
 		PushParticlesInChildrenCells(m_Children[LEFT][BOTTOM][FRONT]->GetCell(), m_Children[RIGHT][BOTTOM][FRONT]->GetCell(),
 									 m_Children[LEFT][TOP][FRONT]->GetCell(), m_Children[RIGHT][TOP][FRONT]->GetCell(), 
 									 m_Children[LEFT][BOTTOM][BACK]->GetCell(), m_Children[RIGHT][BOTTOM][BACK]->GetCell(),

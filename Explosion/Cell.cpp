@@ -25,6 +25,11 @@ void Cell::AddParticle(Particle* particle)
   m_Particles.push_back(particle);
 }
 
+void Cell::ClearParticles()
+{
+  m_Particles.clear();
+}
+
 void Cell::EraseParticleAtIndex(int index)
 {
   if(index < m_Particles.size())

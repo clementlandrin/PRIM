@@ -17,10 +17,10 @@
 
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 512
+#define PARTICLE_NUMBER 100
 #define FLUID_DIMENSION 0.01f
-#define CUBE_SIZE 0.5f
-#define RESOLUTION 4
+#define CUBE_SIZE 0.75f
+#define RESOLUTION 16
 
 int actual_power_of_two_resolution;
 
@@ -121,7 +121,7 @@ void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddCellToVector = fals
 {	
 	addCellToCellPositionVector(octreeNode, shouldAddCellToVector);
 
-	if (!octreeNode->GetIsALeaf() && octreeNode->GetDepth() < 3)
+	if (!octreeNode->GetIsALeaf())
 	{
 		std::vector<std::vector<std::vector<OctreeNode*>>> children = octreeNode->GetChildren();
 		UpdateCellVectors(children[0][0][0], shouldAddCellToVector);

@@ -15,6 +15,7 @@ public:
 	~Cell();
 
 	void AddParticle(Particle* particle);
+	void ClearParticles();
 	void EraseParticleAtIndex(int index);
 	void ComputeEnergy();
 

@@ -15,7 +15,7 @@ in vec4 fPosition;
 in vec4 fNormal;
 
 // Arrays in a UBO must use a constant expression for their size.
-const int MY_ARRAY_SIZE = 512;
+const int MY_ARRAY_SIZE = 100;
 
 // The name of the block is used for finding the index location only
 layout (std140, binding = 0) uniform lightSourcesBlock {
