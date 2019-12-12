@@ -33,10 +33,10 @@ void main() {
   vec3 totalColor = vec3(0.0);
   for (int i = 0; i < number_of_lights; i++)
   {
-      totalColor = totalColor + vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
+    vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
+	contributionFromLightI *= myArray[i].color_and_intensity.w;
+    totalColor += contributionFromLightI;
   }
-  totalColor = totalColor / float(number_of_lights);
 
-  vec3 wi = normalize(fPosition.xyz - (model_view_matrix * myArray[0].position).xyz);
   output_color = vec4(totalColor, 1.0);
 }

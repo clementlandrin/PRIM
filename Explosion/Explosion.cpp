@@ -17,10 +17,12 @@
 
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 100
-#define FLUID_DIMENSION 0.01f
+#define PARTICLE_NUMBER 500
+#define FLUID_PROPORTION_IN_CUBE 0.01f
 #define CUBE_SIZE 0.75f
 #define RESOLUTION 8
+
+static float initialTime;
 
 int actual_power_of_two_resolution;
 
@@ -43,11 +45,14 @@ glm::mat4 projection_matrix = glm::mat4(
 
 Fluid* fluid;
 
+int numberOfCells;
+
 std::vector<float> particlePositions;
 std::vector<float> squarePositions;
 std::vector<float> squareNormals;
 std::vector<float> cellPositions;
 std::vector<float> cellColorAndIntensity;
+std::vector<LightSource> lightSources;
 
 Cell* scene;
 OctreeNode* octreeRoot;
@@ -109,10 +114,21 @@ void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddCellToVec
 		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter()[2]);
 	}
 
-	cellColorAndIntensity.push_back(octreeNode->GetCell()->GetParticles().size());
-	cellColorAndIntensity.push_back(octreeNode->GetCell()->GetParticles().size());
-	cellColorAndIntensity.push_back(octreeNode->GetCell()->GetParticles().size());
+	int indexOfCell = cellPositions.size();
+	int indexToPowerOfTwo = 1;
+	int powerOfTwo = 0;
+	while(indexOfCell > indexToPowerOfTwo)
+	{
+		powerOfTwo += 1;
+		indexToPowerOfTwo = indexToPowerOfTwo + pow(8, powerOfTwo);
+	}
+	int depth = powerOfTwo + 1;
+
+	float numberOfParticlesInCell = octreeNode->GetCell()->GetParticles().size();
 	cellColorAndIntensity.push_back(1.0f);
+	cellColorAndIntensity.push_back(1.0f);
+	cellColorAndIntensity.push_back(1.0f);
+	cellColorAndIntensity.push_back(numberOfParticlesInCell / depth / PARTICLE_NUMBER);
 }
 
 void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
@@ -136,19 +152,19 @@ void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddCellToVector = fals
 void initCellVAO()
 {
 	UpdateCellVectors(octreeRoot, true);
-	glCreateBuffers(1, &m_cellPositionVboID); // Generate a GPU buffer to store the positions of the vertices
-	int numberOfCells = 0;
+	glCreateBuffers(1, &m_cellPositionVboID); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
+	numberOfCells = 0;
 	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
 	{
 		numberOfCells += pow(8, i);
 	}
-	size_t positionBufferSize = sizeof(float) * cellPositions.size(); // Gather the size of the buffer from the CPU-side vector
-	glNamedBufferStorage(m_cellPositionVboID, positionBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
-	glNamedBufferSubData(m_cellPositionVboID, 0, positionBufferSize, cellPositions.data()); // Fill the data store from a CPU array
-	size_t colorAndIntensityBufferSize = sizeof(float) * cellColorAndIntensity.size();
-	glCreateBuffers(1, &m_cellColorAndIntensityVboID);
-	glNamedBufferStorage(m_cellColorAndIntensityVboID, colorAndIntensityBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
-	glNamedBufferSubData(m_cellColorAndIntensityVboID, 0, colorAndIntensityBufferSize, cellColorAndIntensity.data());
+	size_t positionBufferSize = sizeof(float) * numberOfCells * 3; // Gather the size of the buffer from the CPU-side vector
+	glNamedBufferStorage(m_cellPositionVboID, positionBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR(); // Create a data store on the GPU
+	glNamedBufferSubData(m_cellPositionVboID, 0, positionBufferSize, cellPositions.data()); TEST_OPENGL_ERROR(); // Fill the data store from a CPU array
+	size_t colorAndIntensityBufferSize = sizeof(float) * numberOfCells * 4;
+	glCreateBuffers(1, &m_cellColorAndIntensityVboID); TEST_OPENGL_ERROR();
+	glNamedBufferStorage(m_cellColorAndIntensityVboID, colorAndIntensityBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
+	glNamedBufferSubData(m_cellColorAndIntensityVboID, 0, colorAndIntensityBufferSize, cellColorAndIntensity.data()); TEST_OPENGL_ERROR();
 
 	glCreateVertexArrays(1, &m_cellVao);  TEST_OPENGL_ERROR();// Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
 	glBindVertexArray(m_cellVao); TEST_OPENGL_ERROR();
@@ -166,14 +182,14 @@ void initCellVAO()
 
 void initSquareVAO()
 {
-	glCreateBuffers(1, &m_squarePositionVboID); // Generate a GPU buffer to store the positions of the vertices
-	size_t vertexBufferSize = sizeof(float) * squarePositions.size(); // Gather the size of the buffer from the CPU-side vector
-	glNamedBufferStorage(m_squarePositionVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); // Create a data store on the GPU
-	glNamedBufferSubData(m_squarePositionVboID, 0, vertexBufferSize, squarePositions.data()); // Fill the data store from a CPU array
+	glCreateBuffers(1, &m_squarePositionVboID); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
+	size_t vertexBufferSize = sizeof(float) * squarePositions.size(); TEST_OPENGL_ERROR(); // Gather the size of the buffer from the CPU-side vector
+	glNamedBufferStorage(m_squarePositionVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR(); // Create a data store on the GPU
+	glNamedBufferSubData(m_squarePositionVboID, 0, vertexBufferSize, squarePositions.data()); TEST_OPENGL_ERROR(); // Fill the data store from a CPU array
 
-	glCreateBuffers(1, &m_squareNormalVBO); // Same for normal
-	glNamedBufferStorage(m_squareNormalVBO, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT);
-	glNamedBufferSubData(m_squareNormalVBO, 0, vertexBufferSize, squareNormals.data());
+	glCreateBuffers(1, &m_squareNormalVBO); TEST_OPENGL_ERROR(); // Same for normal
+	glNamedBufferStorage(m_squareNormalVBO, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
+	glNamedBufferSubData(m_squareNormalVBO, 0, vertexBufferSize, squareNormals.data()); TEST_OPENGL_ERROR();
 
 	glCreateVertexArrays(1, &m_squareVao);  TEST_OPENGL_ERROR();// Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
 	glBindVertexArray(m_squareVao); TEST_OPENGL_ERROR();
@@ -191,10 +207,10 @@ void initSquareVAO()
 
 void initParticleUBO()
 {
-	glGenBuffers(1, &m_particleUBO);
-	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + sizeof(int), NULL, GL_DYNAMIC_DRAW);
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	glGenBuffers(1, &m_particleUBO); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + sizeof(int), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
 void initBuffers()
@@ -216,7 +232,8 @@ void initBuffers()
 
 void generateParticles()
 {
-	fluid->GenerateParticlesUniformly(PARTICLE_NUMBER, glm::vec3(0.0), FLUID_DIMENSION, FLUID_DIMENSION, FLUID_DIMENSION);
+	float fluidInitialSpace = FLUID_PROPORTION_IN_CUBE * CUBE_SIZE;
+	fluid->GenerateParticlesUniformly(PARTICLE_NUMBER, glm::vec3(0.0), fluidInitialSpace, fluidInitialSpace, fluidInitialSpace);
 }
 
 void initFluid()
@@ -517,9 +534,12 @@ int init(int argc, char **argv)
 	return 0;
 }
 
-void update()
+void update(float currentTime)
 {
-	fluid->UpdateParticlePositions(0.01 * CUBE_SIZE, CUBE_SIZE);
+	float dt = currentTime - initialTime;
+	initialTime = currentTime;
+
+	fluid->UpdateParticlePositions(dt * 0.0003f * CUBE_SIZE, CUBE_SIZE);
 
 	if (fluid->GetParticles().size() == 0)
 	{
@@ -531,7 +551,7 @@ void update()
 	scene->SetParticles(fluid->GetParticles());
 
 	octreeRoot->SetCell(scene);
-	octreeRoot->UpdateParticlesInChildrenCells(); // TODO To improve
+	octreeRoot->UpdateParticlesInChildrenCells();
 
 	cellColorAndIntensity.clear();
 	UpdateCellVectors(octreeRoot, false);
@@ -555,25 +575,24 @@ void drawParticlesVBO()
 void drawCubeVAO()
 {
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
-	std::vector<LightSource> lightSources; 
 	lightSources.resize(cellPositions.size()/3);
 
 	for (int i = 0; i < cellPositions.size()/3; i++)
 	{
 		lightSources[i].position = glm::vec4(cellPositions[3 * i], cellPositions[3 * i + 1], cellPositions[3 * i + 2], 1.0);
-		lightSources[i].color_and_intensity = glm::vec4(cellColorAndIntensity[3 * i], cellColorAndIntensity[3 * i + 1], cellColorAndIntensity[3 * i + 2], cellColorAndIntensity[3 * i + 3]);
+		lightSources[i].color_and_intensity = glm::vec4(cellColorAndIntensity[4 * i], cellColorAndIntensity[4 * i + 1], cellColorAndIntensity[4 * i + 2], cellColorAndIntensity[4 * i + 3]);
 	}
 
-	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
 	int actualNumberOfCells[1] = { cellPositions.size()/3 };
 	GLsizei sifeOfArray = cellPositions.size() / 3 * sizeof(LightSource);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
 
-	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock");
-	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO);
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock"); TEST_OPENGL_ERROR();
+	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0); TEST_OPENGL_ERROR();
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 
 	glBindVertexArray(m_squareVao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
@@ -620,7 +639,7 @@ void drawCellVAO()
 
 void render()
 {
-	update();
+	update(glutGet(GLUT_ELAPSED_TIME));
 	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); TEST_OPENGL_ERROR();
 
@@ -652,7 +671,7 @@ int main(int argc, char **argv) {
 	{
 		return 1;
 	}
-
+	initialTime = glutGet(GLUT_ELAPSED_TIME);
 	glutDisplayFunc(render);
 	glutMainLoop();
 
