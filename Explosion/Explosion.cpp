@@ -20,7 +20,7 @@
 #define PARTICLE_NUMBER 100
 #define FLUID_DIMENSION 0.01f
 #define CUBE_SIZE 0.75f
-#define RESOLUTION 16
+#define RESOLUTION 8
 
 int actual_power_of_two_resolution;
 
@@ -66,8 +66,6 @@ GLuint m_cellVao;
 GLuint particleProgramID;
 GLuint lightingProgramID;
 GLuint cellProgramID;
-
-LightSource lightSources[PARTICLE_NUMBER];
 
 #define TEST_OPENGL_ERROR()                                                             \
   do {		  							\
@@ -195,7 +193,7 @@ void initParticleUBO()
 {
 	glGenBuffers(1, &m_particleUBO);
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * PARTICLE_NUMBER + sizeof(int), NULL, GL_DYNAMIC_DRAW);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + sizeof(int), NULL, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
@@ -557,18 +555,20 @@ void drawParticlesVBO()
 void drawCubeVAO()
 {
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+	std::vector<LightSource> lightSources; 
+	lightSources.resize(cellPositions.size()/3);
 
-	for (int i = 0; i < particlePositions.size()/3; i++)
+	for (int i = 0; i < cellPositions.size()/3; i++)
 	{
-		lightSources[i].position = glm::vec4(particlePositions[3 * i], particlePositions[3 * i + 1], particlePositions[3 * i + 2], 1.0);
-		lightSources[i].color_and_intensity = glm::vec4(1.0);
+		lightSources[i].position = glm::vec4(cellPositions[3 * i], cellPositions[3 * i + 1], cellPositions[3 * i + 2], 1.0);
+		lightSources[i].color_and_intensity = glm::vec4(cellColorAndIntensity[3 * i], cellColorAndIntensity[3 * i + 1], cellColorAndIntensity[3 * i + 2], cellColorAndIntensity[3 * i + 3]);
 	}
 
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO);
-	int actualNumberOfParticles[1] = { particlePositions.size() };
-	GLsizei sifeOfArray = particlePositions.size() / 3 * sizeof(LightSource);
+	int actualNumberOfCells[1] = { cellPositions.size()/3 };
+	GLsizei sifeOfArray = cellPositions.size() / 3 * sizeof(LightSource);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfParticles)); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
 
 	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock");
 	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0);
