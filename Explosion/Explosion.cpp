@@ -55,7 +55,6 @@ std::vector<float> cellColorAndIntensity;
 std::vector<LightSource> lightSources;
 std::vector<RegularGrid*> regularGrids;
 
-Cell* scene;
 OctreeNode* octreeRoot;
 
 GLuint m_particleVboID;
@@ -469,8 +468,22 @@ void createSquare()
 void initScene()
 {
 	createSquare();
-	scene = new Cell(nullptr, glm::vec3(-CUBE_SIZE), 2.0 * CUBE_SIZE, 2.0 * CUBE_SIZE, 2.0 * CUBE_SIZE);
-	scene->SetParticles(fluid->GetParticles());
+
+	int power_index = 0;
+	float temp = (float)RESOLUTION;
+
+	while (temp > 1.0 && power_index < 4)
+	{
+		temp = temp / 2.0;
+		power_index = power_index + 1;
+	}
+
+	actual_power_of_two_resolution = power_index;
+	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
+	{
+		regularGrids.push_back(new RegularGrid(pow(2, i), glm::vec3(CUBE_SIZE * 2.0)));
+	}
+	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
 }
 
 void initShaders()
@@ -498,22 +511,8 @@ void initShaders()
 
 void initOctree()
 {
-	int power_index = 0;
-	float temp = (float)RESOLUTION;
-
-	while (temp > 1.0 && power_index < 4)
-	{
-		temp = temp / 2.0;
-		power_index = power_index + 1;
-	}
-
-	actual_power_of_two_resolution = power_index;
-	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
-	{
-		regularGrids.push_back(new RegularGrid(pow(2, i), glm::vec3(CUBE_SIZE * 2.0)));
-	}
 	int position_of_root_in_grid[3] = { 0, 0, 0 };
-	octreeRoot = OctreeNode::BuildOctree(0, power_index - 1, scene, position_of_root_in_grid, regularGrids);
+	octreeRoot = OctreeNode::BuildOctree(0, actual_power_of_two_resolution - 1, regularGrids[0]->GetCells()[0][0][0], position_of_root_in_grid, regularGrids);
 }
 
 int init(int argc, char **argv)
@@ -553,9 +552,9 @@ void update(float currentTime)
 
 	updatePositions();
 
-	scene->SetParticles(fluid->GetParticles());
+	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
 
-	octreeRoot->SetCell(scene);
+	octreeRoot->SetCell(regularGrids[0]->GetCells()[0][0][0]);
 	octreeRoot->UpdateParticlesInChildrenCells();
 
 	cellColorAndIntensity.clear();
@@ -670,7 +669,6 @@ void clear()
 	{
 		delete regularGrids[i];
 	}
-	delete scene;
 	delete octreeRoot;
 	delete fluid;
 }
