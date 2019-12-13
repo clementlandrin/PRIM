@@ -53,6 +53,7 @@ std::vector<float> squareNormals;
 std::vector<float> cellPositions;
 std::vector<float> cellColorAndIntensity;
 std::vector<LightSource> lightSources;
+std::vector<RegularGrid*> regularGrids;
 
 Cell* scene;
 OctreeNode* octreeRoot;
@@ -498,17 +499,22 @@ void initShaders()
 void initOctree()
 {
 	int power_index = 0;
-	float temp = RESOLUTION;
+	float temp = (float)RESOLUTION;
 
-	while (temp > 1.0 && power_index < 3)
+	while (temp > 1.0 && power_index < 4)
 	{
 		temp = temp / 2.0;
 		power_index = power_index + 1;
 	}
 
 	actual_power_of_two_resolution = power_index;
-
-	octreeRoot = OctreeNode::BuildOctree(0, power_index - 1, scene);
+	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
+	{
+		regularGrids.push_back(new RegularGrid(pow(2, i), glm::vec3(CUBE_SIZE)));
+		std::cout << "Created regular grid of resolution" << pow(2, i) << std::endl;
+	}
+	int position_of_root_in_grid[3] = { 0, 0, 0 };
+	octreeRoot = OctreeNode::BuildOctree(0, power_index - 1, scene, position_of_root_in_grid);
 }
 
 int init(int argc, char **argv)
@@ -661,6 +667,10 @@ void clear()
 	glDeleteBuffers(1, &m_squareNormalVBO); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squareVao); TEST_OPENGL_ERROR();
 
+	for (int i = 0; i < regularGrids.size(); i++)
+	{
+		delete regularGrids[i];
+	}
 	delete scene;
 	delete octreeRoot;
 	delete fluid;

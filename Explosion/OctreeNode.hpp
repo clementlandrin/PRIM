@@ -11,10 +11,10 @@ class Cell;
 
 class OctreeNode {
 public:
-	OctreeNode();
+	OctreeNode(int positionInGrid[3]);
 	~OctreeNode();
 	
-	static OctreeNode * BuildOctree(int depth, int maxDepth, Cell* cell);
+	static OctreeNode * BuildOctree(int depth, int maxDepth, Cell* cell, int positionInGrid[3]);
 
 	bool GetIsALeaf();
 	Cell* GetCell();
@@ -31,6 +31,8 @@ private:
   std::vector<std::vector<std::vector<OctreeNode*>>> m_Children;
   bool m_IsALeaf;
   int m_Depth;
+
+  int m_PositionInGrid[3];
 
   void BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell);
   void PushParticlesInChildrenCells(Cell* cell_left_bottom_front, Cell* cell_right_bottom_front, 
