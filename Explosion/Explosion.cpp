@@ -510,11 +510,10 @@ void initOctree()
 	actual_power_of_two_resolution = power_index;
 	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
 	{
-		regularGrids.push_back(new RegularGrid(pow(2, i), glm::vec3(CUBE_SIZE)));
-		std::cout << "Created regular grid of resolution" << pow(2, i) << std::endl;
+		regularGrids.push_back(new RegularGrid(pow(2, i), glm::vec3(CUBE_SIZE * 2.0)));
 	}
 	int position_of_root_in_grid[3] = { 0, 0, 0 };
-	octreeRoot = OctreeNode::BuildOctree(0, power_index - 1, scene, position_of_root_in_grid);
+	octreeRoot = OctreeNode::BuildOctree(0, power_index - 1, scene, position_of_root_in_grid, regularGrids);
 }
 
 int init(int argc, char **argv)

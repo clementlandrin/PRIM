@@ -4,6 +4,7 @@
 
 #include "Cell.hpp"
 #include "Particle.hpp"
+#include "RegularGrid.h"
 
 #define LEFT 0
 #define RIGHT 1
@@ -12,11 +13,13 @@
 #define FRONT 0
 #define BACK 1
 
-OctreeNode::OctreeNode(int positionInGrid[3])
+OctreeNode::OctreeNode(int positionInGrid[3], std::vector<RegularGrid*> regularGrids)
 {
 	m_PositionInGrid[0] = positionInGrid[0];
 	m_PositionInGrid[1] = positionInGrid[1];
 	m_PositionInGrid[2] = positionInGrid[2];
+
+	m_RegularGrids = regularGrids;
 }
 
 OctreeNode::~OctreeNode()
@@ -51,9 +54,9 @@ void OctreeNode::DeleteChildren()
   }
 }
 
-OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell, int positionInGrid[3])
+OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell, int positionInGrid[3], std::vector<RegularGrid*> regularGrids)
 {
-  OctreeNode * nodePtr = new OctreeNode(positionInGrid);
+  OctreeNode * nodePtr = new OctreeNode(positionInGrid, regularGrids);
   nodePtr->SetDepth(depth);
   nodePtr->SetCell(cell);
 
@@ -67,7 +70,7 @@ OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell, int po
 	else
 	{
     nodePtr->AllocateChildren();
-    nodePtr->BuildOctreeFromChildren(depth, maxDepth, cell);
+    nodePtr->BuildOctreeFromChildren(depth, maxDepth, cell, regularGrids);
 
 		nodePtr->SetIsALeaf(false);
 	}
@@ -75,76 +78,44 @@ OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell, int po
 	return nodePtr;
 }
 
-void OctreeNode::BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell)
+void OctreeNode::BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell, std::vector<RegularGrid*> regularGrids)
 {
   float child_width = cell->GetCellWidth()/2.0;
   float child_height = cell->GetCellHeight()/2.0;
   float child_depth = cell->GetCellDepth()/2.0;
 
-  Cell* cell_left_bottom_front  = new Cell(m_Cell,
-                                                 cell->GetPosition(),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
-  Cell* cell_right_bottom_front = new Cell(m_Cell,
-                                                 cell->GetPosition() + glm::vec3(child_width, 0.0, 0.0),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
-  Cell* cell_left_top_front     = new Cell(m_Cell,
-                                                 cell->GetPosition() + glm::vec3(0.0, child_height, 0.0),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
-  Cell* cell_right_top_front    = new Cell(m_Cell,
-                                                 cell->GetPosition() + glm::vec3(child_width, child_height, 0.0),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
-  Cell* cell_left_bottom_back   = new Cell(m_Cell,
-                                                 cell->GetPosition() + glm::vec3(0.0, 0.0, child_depth),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
-  Cell* cell_right_bottom_back  = new Cell(m_Cell,
-                                                 cell->GetPosition() + glm::vec3(child_width, 0.0, child_depth),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
-  Cell* cell_left_top_back      = new Cell(m_Cell,
-                                                 cell->GetPosition() + glm::vec3(0.0, child_height, child_depth),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
-  Cell* cell_right_top_back     = new Cell(m_Cell,
-                                                 cell->GetPosition() + glm::vec3(child_width, child_height, child_depth),
-                                                 child_width,
-                                                 child_height,
-                                                 child_depth);
+  int position_in_grid_left_bottom_front[3] = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2] };
+  int position_in_grid_right_bottom_front[3] = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2] };
+  int position_in_grid_left_top_front[3] = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2] };
+  int position_in_grid_right_top_front[3] = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2] };
+  int position_in_grid_left_bottom_back[3] = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2] + 1 };
+  int position_in_grid_right_bottom_back[3] = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2] + 1 };
+  int position_in_grid_left_top_back[3] = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2] + 1 };
+  int position_in_grid_right_top_back[3] = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2] + 1 };
+
+  Cell* cell_left_bottom_front = regularGrids[depth + 1]->GetCells()[position_in_grid_left_bottom_front[0]][position_in_grid_left_bottom_front[1]][position_in_grid_left_bottom_front[2]];
+  Cell* cell_right_bottom_front = regularGrids[depth + 1]->GetCells()[position_in_grid_right_bottom_front[0]][position_in_grid_right_bottom_front[1]][position_in_grid_right_bottom_front[2]];
+  Cell* cell_left_top_front     = regularGrids[depth + 1]->GetCells()[position_in_grid_left_top_front[0]][position_in_grid_left_top_front[1]][position_in_grid_left_top_front[2]];
+  Cell* cell_right_top_front    = regularGrids[depth + 1]->GetCells()[position_in_grid_right_top_front[0]][position_in_grid_right_top_front[1]][position_in_grid_right_top_front[2]];
+  Cell* cell_left_bottom_back   = regularGrids[depth + 1]->GetCells()[position_in_grid_left_bottom_back[0]][position_in_grid_left_bottom_back[1]][position_in_grid_left_bottom_back[2]];
+  Cell* cell_right_bottom_back  = regularGrids[depth + 1]->GetCells()[position_in_grid_right_bottom_back[0]][position_in_grid_right_bottom_back[1]][position_in_grid_right_bottom_back[2]];
+  Cell* cell_left_top_back      = regularGrids[depth + 1]->GetCells()[position_in_grid_left_top_back[0]][position_in_grid_left_top_back[1]][position_in_grid_left_top_back[2]];
+  Cell* cell_right_top_back     = regularGrids[depth + 1]->GetCells()[position_in_grid_right_top_back[0]][position_in_grid_right_top_back[1]][position_in_grid_right_top_back[2]];
 
   PushParticlesInChildrenCells(cell_left_bottom_front, cell_right_bottom_front, cell_left_top_front, cell_right_top_front,
                                cell_left_bottom_back, cell_right_bottom_back, cell_left_top_back, cell_right_top_back);
 
-  int position_in_grid_left_bottom_front[3]  = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2]     };
-  int position_in_grid_right_bottom_front[3] = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2]     };
-  int position_in_grid_left_top_front[3]     = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2]     };
-  int position_in_grid_right_top_front[3]    = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2]     };
-  int position_in_grid_left_bottom_back[3]   = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2] + 1 };
-  int position_in_grid_right_bottom_back[3]  = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1],     2 * m_PositionInGrid[2] + 1 };
-  int position_in_grid_left_top_back[3]      = { 2 * m_PositionInGrid[0],     2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2] + 1 };
-  int position_in_grid_right_top_back[3]     = { 2 * m_PositionInGrid[0] + 1, 2 * m_PositionInGrid[1] + 1, 2 * m_PositionInGrid[2] + 1 };
+  m_Children[LEFT][BOTTOM][FRONT] = BuildOctree(depth + 1, maxDepth, cell_left_bottom_front, position_in_grid_left_bottom_front, regularGrids);
+  m_Children[RIGHT][BOTTOM][FRONT] = BuildOctree(depth+1, maxDepth, cell_right_bottom_front, position_in_grid_right_bottom_front, regularGrids);
 
-  m_Children[LEFT][BOTTOM][FRONT] = BuildOctree(depth + 1, maxDepth, cell_left_bottom_front, position_in_grid_left_bottom_front);
-  m_Children[RIGHT][BOTTOM][FRONT] = BuildOctree(depth+1, maxDepth, cell_right_bottom_front, position_in_grid_right_bottom_front);
+  m_Children[LEFT][TOP][FRONT]     = BuildOctree(depth+1, maxDepth, cell_left_top_front, position_in_grid_left_top_front, regularGrids);
+  m_Children[RIGHT][TOP][FRONT]    = BuildOctree(depth+1, maxDepth, cell_right_top_front, position_in_grid_right_top_front, regularGrids);
 
-  m_Children[LEFT][TOP][FRONT]     = BuildOctree(depth+1, maxDepth, cell_left_top_front, position_in_grid_left_top_front);
-  m_Children[RIGHT][TOP][FRONT]    = BuildOctree(depth+1, maxDepth, cell_right_top_front, position_in_grid_right_top_front);
+  m_Children[LEFT][BOTTOM][BACK]   = BuildOctree(depth+1, maxDepth, cell_left_bottom_back, position_in_grid_left_bottom_back, regularGrids);
+  m_Children[RIGHT][BOTTOM][BACK]  = BuildOctree(depth+1, maxDepth, cell_right_bottom_back, position_in_grid_right_bottom_back, regularGrids);
 
-  m_Children[LEFT][BOTTOM][BACK]   = BuildOctree(depth+1, maxDepth, cell_left_bottom_back, position_in_grid_left_bottom_back);
-  m_Children[RIGHT][BOTTOM][BACK]  = BuildOctree(depth+1, maxDepth, cell_right_bottom_back, position_in_grid_right_bottom_back);
-
-  m_Children[LEFT][TOP][BACK]      = BuildOctree(depth+1, maxDepth, cell_left_top_back, position_in_grid_left_top_back);
-  m_Children[RIGHT][TOP][BACK]     = BuildOctree(depth+1, maxDepth, cell_right_top_back, position_in_grid_right_top_back);
+  m_Children[LEFT][TOP][BACK]      = BuildOctree(depth+1, maxDepth, cell_left_top_back, position_in_grid_left_top_back, regularGrids);
+  m_Children[RIGHT][TOP][BACK]     = BuildOctree(depth+1, maxDepth, cell_right_top_back, position_in_grid_right_top_back, regularGrids);
 }
 
 void OctreeNode::PushParticlesInChildrenCells(Cell* cell_left_bottom_front, Cell* cell_right_bottom_front, 
