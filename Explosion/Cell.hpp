@@ -8,10 +8,12 @@
 
 class Particle;
 
+class RegularGrid;
+
 class Cell
 {
 public:
-	Cell(Cell* parent, glm::vec3 position, float width, float height, float depth, int indexInRegularGrid[3]);
+	Cell(Cell* parent, glm::vec3 position, float width, float height, float depth, int indexInRegularGrid[3], RegularGrid* regularGrid);
 	~Cell();
 
 	void AddParticle(Particle* particle);
@@ -37,6 +39,14 @@ public:
 	void SetParent(Cell* parent);
 	
 private:
+	Cell* GetOnTopCell();
+	Cell* GetOnBottomCell();
+	Cell* GetOnLeftCell();
+	Cell* GetOnRightCell();
+	Cell* GetOnFrontCell();
+	Cell* GetOnBackCell();
+
+	RegularGrid* m_RegularGrid;
 	Cell* m_Parent;
 	glm::vec3 m_Position;
 	float m_CellWidth;

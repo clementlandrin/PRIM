@@ -18,7 +18,7 @@ RegularGrid::RegularGrid(int resolution, glm::vec3 size)
 			{
 				glm::vec3 position = glm::vec3(size[0] / resolution * i - size[0] / 2.0, size[1] / resolution * j - size[1] / 2.0, size[2] / resolution * k - size[2] / 2.0);
 				int indexOfCell[3] = { i, j, k };
-				Cell* cell = new Cell(nullptr, position, size[0] / resolution, size[1] / resolution, size[2] / resolution, indexOfCell);
+				Cell* cell = new Cell(nullptr, position, size[0] / resolution, size[1] / resolution, size[2] / resolution, indexOfCell, this);
 				m_Cells[i][j][k] = cell;
 			}
 		}

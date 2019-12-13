@@ -1,18 +1,22 @@
 #include "Cell.hpp"
 
 #include "Particle.hpp"
+#include "RegularGrid.h"
 #include <iostream>
 
-Cell::Cell(Cell* parent, glm::vec3 position, float width, float height, float depth, int indexInRegularGrid[3])
+Cell::Cell(Cell* parent, glm::vec3 position, float width, float height, float depth, int indexInRegularGrid[3], RegularGrid* regularGrid)
 {
   m_Parent = parent;
+
   m_Position = position;
   m_CellWidth = width;
   m_CellHeight = height;
   m_CellDepth = depth;
+
   m_IndexInRegularGrid[0] = indexInRegularGrid[0];
   m_IndexInRegularGrid[1] = indexInRegularGrid[1];
   m_IndexInRegularGrid[2] = indexInRegularGrid[2];
+  m_RegularGrid = regularGrid;
 }
 
 Cell::~Cell()
@@ -124,4 +128,76 @@ void Cell::SetEnergy(float energy)
 void Cell::SetParent(Cell* parent)
 {
   m_Parent = parent;
+}
+
+Cell * Cell::GetOnTopCell()
+{
+	if (m_IndexInRegularGrid[1] < m_RegularGrid->GetResolution() - 1)
+	{
+		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0]][m_IndexInRegularGrid[1] + 1][m_IndexInRegularGrid[2]];
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+Cell * Cell::GetOnBottomCell()
+{
+	if (m_IndexInRegularGrid[1] > 1)
+	{
+		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0]][m_IndexInRegularGrid[1] - 1][m_IndexInRegularGrid[2]];
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+Cell * Cell::GetOnLeftCell()
+{
+	if (m_IndexInRegularGrid[0] > 1)
+	{
+		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0] - 1][m_IndexInRegularGrid[1]][m_IndexInRegularGrid[2]];
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+Cell * Cell::GetOnRightCell()
+{
+	if (m_IndexInRegularGrid[1] < m_RegularGrid->GetResolution() - 1)
+	{
+		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0] + 1][m_IndexInRegularGrid[1]][m_IndexInRegularGrid[2]];
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+Cell * Cell::GetOnFrontCell()
+{
+	if (m_IndexInRegularGrid[2] < 1)
+	{
+		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0]][m_IndexInRegularGrid[1]][m_IndexInRegularGrid[2] - 1];
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+Cell * Cell::GetOnBackCell()
+{
+	if (m_IndexInRegularGrid[1] < m_RegularGrid->GetResolution() - 1)
+	{
+		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0]][m_IndexInRegularGrid[1]][m_IndexInRegularGrid[2] + 1];
+	}
+	else
+	{
+		return nullptr;
+	}
 }
