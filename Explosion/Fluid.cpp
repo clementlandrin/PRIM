@@ -50,7 +50,8 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize)
 {
   for (int i = 0; i < m_Particles.size(); i++)
   {
-	  glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed(); //glm::vec3(rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)));
+	m_Particles[i]->SetSpeed(m_Particles[i]->GetSpeed() + dt * SpeedVariationByNavierStokes());
+	glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed(); //glm::vec3(rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)));
 	if (PositionIsInCube(newPosition, cubeSize))
 	{
 	  m_Particles[i]->SetPosition(newPosition);
@@ -61,6 +62,11 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize)
 	  m_Particles.erase(m_Particles.begin() + i);
 	}
   }
+}
+
+glm::vec3 Fluid::SpeedVariationByNavierStokes()
+{
+	return glm::vec3(0.0);
 }
 
 const float Fluid::GetViscosity() { return m_Viscosity; }
