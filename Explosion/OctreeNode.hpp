@@ -5,16 +5,18 @@
 
 #include <vector>
 
+class RegularGrid;
+
 class Particle;
 
 class Cell;
 
 class OctreeNode {
 public:
-	OctreeNode();
+	OctreeNode(int positionInGrid[3], std::vector<RegularGrid*> regularGrids);
 	~OctreeNode();
 	
-	static OctreeNode * BuildOctree(int depth, int maxDepth, Cell* cell);
+	static OctreeNode * BuildOctree(int depth, int maxDepth, Cell* cell, int positionInGrid[3], std::vector<RegularGrid*> regularGrids);
 
 	bool GetIsALeaf();
 	Cell* GetCell();
@@ -31,8 +33,11 @@ private:
   std::vector<std::vector<std::vector<OctreeNode*>>> m_Children;
   bool m_IsALeaf;
   int m_Depth;
+  std::vector<RegularGrid*> m_RegularGrids;
 
-  void BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell);
+  int m_PositionInGrid[3];
+
+  void BuildOctreeFromChildren(int depth, int maxDepth, Cell* cell, std::vector<RegularGrid*> regularGrids);
   void PushParticlesInChildrenCells(Cell* cell_left_bottom_front, Cell* cell_right_bottom_front, 
                                     Cell* cell_left_top_front, Cell* cell_right_top_front,
                                     Cell* cell_left_bottom_back, Cell* cell_right_bottom_back,

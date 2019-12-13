@@ -3,13 +3,16 @@
 #include "Particle.hpp"
 #include <iostream>
 
-Cell::Cell(Cell* parent, glm::vec3 position, float width, float height, float depth)
+Cell::Cell(Cell* parent, glm::vec3 position, float width, float height, float depth, int indexInRegularGrid[3])
 {
   m_Parent = parent;
   m_Position = position;
   m_CellWidth = width;
   m_CellHeight = height;
   m_CellDepth = depth;
+  m_IndexInRegularGrid[0] = indexInRegularGrid[0];
+  m_IndexInRegularGrid[1] = indexInRegularGrid[1];
+  m_IndexInRegularGrid[2] = indexInRegularGrid[2];
 }
 
 Cell::~Cell()
