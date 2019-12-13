@@ -11,7 +11,7 @@ class Particle;
 class Cell
 {
 public:
-	Cell(Cell* parent, glm::vec3 position, float width, float height, float depth);
+	Cell(Cell* parent, glm::vec3 position, float width, float height, float depth, int indexInRegularGrid[3]);
 	~Cell();
 
 	void AddParticle(Particle* particle);
@@ -45,6 +45,7 @@ private:
 	glm::vec3 m_Speed;
 	float m_Energy;
 	std::vector<Particle*> m_Particles;
+	int m_IndexInRegularGrid[3];
 };
 
 #endif /* CELL_HPP */
