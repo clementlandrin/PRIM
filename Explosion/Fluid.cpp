@@ -38,6 +38,7 @@ void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, flo
     float z =  (origin.z - depth*0.5 + rand() / (static_cast <float> (RAND_MAX/depth)));
     position = glm::vec3( x, y, z);
 	initialSpeed = glm::normalize(position);
+	initialSpeed.y = 1.0f;
 
     Particle* particle = new Particle(position, 1.0f/particleNumber);
     particle->SetSpeed(initialSpeed);
@@ -50,7 +51,7 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize)
 {
   for (int i = 0; i < m_Particles.size(); i++)
   {
-	m_Particles[i]->SetSpeed(m_Particles[i]->GetSpeed() + dt * SpeedVariationByNavierStokes());
+	m_Particles[i]->SetSpeed(m_Particles[i]->GetSpeed() + dt * SpeedVariationByNavierStokes(m_Particles[i]));
 	glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed(); //glm::vec3(rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)));
 	if (PositionIsInCube(newPosition, cubeSize))
 	{
@@ -63,10 +64,9 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize)
 	}
   }
 }
-
-glm::vec3 Fluid::SpeedVariationByNavierStokes()
+glm::vec3 Fluid::SpeedVariationByNavierStokes(Particle* particle)
 {
-	return glm::vec3(0.0);
+	return m_Viscosity * particle->GetLaplacian() - particle->GetVGradV();
 }
 
 const float Fluid::GetViscosity() { return m_Viscosity; }

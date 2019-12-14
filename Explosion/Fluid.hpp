@@ -22,7 +22,7 @@ public:
 
   void GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, float width, float height, float depth);
   void UpdateParticlePositions(float dt, float cubeSize);
-  glm::vec3 SpeedVariationByNavierStokes();
+  glm::vec3 SpeedVariationByNavierStokes(Particle* particle);
 
   static bool PositionIsInCube(glm::vec3 position, float cubeSize);
 

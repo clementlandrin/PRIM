@@ -59,3 +59,59 @@ void RegularGrid::UpdateSpeedOfCells()
 		}
 	}
 }
+
+void RegularGrid::UpdateGradientAndVGradVOfCells()
+{
+	for (int i = 0; i < m_Resolution; i++)
+	{
+		for (int j = 0; j < m_Resolution; j++)
+		{
+			for (int k = 0; k < m_Resolution; k++)
+			{
+				m_Cells[i][j][k]->ComputeGradientAndVGradV();
+			}
+		}
+	}
+}
+
+void RegularGrid::UpdateLaplacianOfCells()
+{
+	for (int i = 0; i < m_Resolution; i++)
+	{
+		for (int j = 0; j < m_Resolution; j++)
+		{
+			for (int k = 0; k < m_Resolution; k++)
+			{
+				m_Cells[i][j][k]->ComputeLaplacian();
+			}
+		}
+	}
+}
+
+void RegularGrid::PushNavierStokesParametersToParticles()
+{
+	for (int i = 0; i < m_Resolution; i++)
+	{
+		for (int j = 0; j < m_Resolution; j++)
+		{
+			for (int k = 0; k < m_Resolution; k++)
+			{
+				m_Cells[i][j][k]->PushNavierStokesParameters();
+			}
+		}
+	}
+}
+
+void RegularGrid::ResetNavierStokesParametersOfCells()
+{
+	for (int i = 0; i < m_Resolution; i++)
+	{
+		for (int j = 0; j < m_Resolution; j++)
+		{
+			for (int k = 0; k < m_Resolution; k++)
+			{
+				m_Cells[i][j][k]->ResetNavierStokesParameters();
+			}
+		}
+	}
+}

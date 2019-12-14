@@ -14,13 +14,14 @@
 #include "Cell.hpp"
 #include "RegularGrid.h"
 #include "ShaderProgram.h"
+#include "Explosion.h"
 
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
 #define PARTICLE_NUMBER 500
 #define FLUID_PROPORTION_IN_CUBE 0.50f
 #define CUBE_SIZE 0.75f
-#define RESOLUTION 8
+#define RESOLUTION 4
 
 static float initialTime;
 
@@ -546,9 +547,13 @@ void update(float currentTime)
 	fluid->UpdateParticlePositions(dt * 0.0003f * CUBE_SIZE, CUBE_SIZE);
 
 	regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
+	regularGrids[regularGrids.size() - 1]->UpdateGradientAndVGradVOfCells();
+	regularGrids[regularGrids.size() - 1]->UpdateLaplacianOfCells();
+	regularGrids[regularGrids.size() - 1]->PushNavierStokesParametersToParticles();
 
-	if (fluid->GetParticles().size() == 0)
+	if (fluid->GetParticles().size() < PARTICLE_NUMBER / 10)
 	{
+		regularGrids[regularGrids.size() - 1]->ResetNavierStokesParametersOfCells();
 		generateParticles();
 	}
 

@@ -19,6 +19,11 @@ public:
 	void SetResolution(int resolution);
 
 	void UpdateSpeedOfCells();
+	void UpdateGradientAndVGradVOfCells();
+	void UpdateLaplacianOfCells();
+
+	void ResetNavierStokesParametersOfCells();
+	void PushNavierStokesParametersToParticles();
 private:
 	int m_Resolution;
 	glm::vec3 m_Size;

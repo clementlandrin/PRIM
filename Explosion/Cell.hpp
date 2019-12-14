@@ -21,6 +21,11 @@ public:
 	void EraseParticleAtIndex(int index);
 	void ComputeEnergy();
 	void UpdateSpeed();
+	const glm::vec3 ComputeCenter();
+	void ComputeGradientAndVGradV();
+	void ComputeLaplacian();
+	void PushNavierStokesParameters();
+	void ResetNavierStokesParameters();
 
   	std::vector<Particle*> GetParticles();
 	const glm::vec3 GetPosition();
@@ -29,7 +34,8 @@ public:
   	const float GetCellDepth();
   	const float GetEnergy();
 	const Cell* GetParent();
-	const glm::vec3 ComputeCenter();
+	const glm::vec3 GetSpeed();
+	const glm::vec3 GetGradient();
 
 	void SetParticles(std::vector<Particle*> particles);
 	void SetPosition(glm::vec3 position);
@@ -38,7 +44,6 @@ public:
 	void SetCellDepth(float depth);
 	void SetEnergy(float energy);
 	void SetParent(Cell* parent);
-	
 private:
 	Cell* GetOnTopCell();
 	Cell* GetOnBottomCell();
@@ -57,6 +62,9 @@ private:
 	float m_Energy;
 	std::vector<Particle*> m_Particles;
 	int m_IndexInRegularGrid[3];
+	glm::vec3 m_Gradient;
+	glm::vec3 m_Laplacian;
+	glm::vec3 m_VGradv;
 };
 
 #endif /* CELL_HPP */
