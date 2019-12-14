@@ -18,7 +18,7 @@
 #define VISCOSITY 1.0f
 #define DENSITY 1.0f
 #define PARTICLE_NUMBER 500
-#define FLUID_PROPORTION_IN_CUBE 0.01f
+#define FLUID_PROPORTION_IN_CUBE 0.50f
 #define CUBE_SIZE 0.75f
 #define RESOLUTION 8
 
@@ -544,6 +544,8 @@ void update(float currentTime)
 	initialTime = currentTime;
 
 	fluid->UpdateParticlePositions(dt * 0.0003f * CUBE_SIZE, CUBE_SIZE);
+
+	regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
 
 	if (fluid->GetParticles().size() == 0)
 	{

@@ -45,3 +45,17 @@ std::vector<std::vector<std::vector<Cell*>>> RegularGrid::GetCells() { return m_
 
 void RegularGrid::SetSize(glm::vec3 size) { m_Size = size; }
 void RegularGrid::SetResolution(int resolution) { m_Resolution = resolution; }
+
+void RegularGrid::UpdateSpeedOfCells()
+{
+	for (int i = 0; i < m_Resolution; i++)
+	{
+		for (int j = 0; j < m_Resolution; j++)
+		{
+			for (int k = 0; k < m_Resolution; k++)
+			{
+				m_Cells[i][j][k]->UpdateSpeed();
+			}
+		}
+	}
+}

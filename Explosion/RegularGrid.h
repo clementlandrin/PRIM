@@ -17,6 +17,8 @@ public:
 
 	void SetSize(glm::vec3 size);
 	void SetResolution(int resolution);
+
+	void UpdateSpeedOfCells();
 private:
 	int m_Resolution;
 	glm::vec3 m_Size;

@@ -20,6 +20,7 @@ public:
 	void ClearParticles();
 	void EraseParticleAtIndex(int index);
 	void ComputeEnergy();
+	void UpdateSpeed();
 
   	std::vector<Particle*> GetParticles();
 	const glm::vec3 GetPosition();
