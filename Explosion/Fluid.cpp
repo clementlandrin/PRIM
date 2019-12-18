@@ -41,10 +41,9 @@ void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, flo
 	position = glm::normalize(position);
 	position = position * length;
 	initialSpeed = glm::normalize(position);
-	initialSpeed.y = 2.0f;
+	initialSpeed.y = 5.0f;
 	initialSpeed = initialSpeed * speedFactor;
 
-	//initialSpeed = glm::vec3(0.0f, 1.0f, 0.0f);
 	position = position * glm::vec3(width*0.5, height*0.5, depth*0.5);
 	position = position + origin;
 
@@ -55,8 +54,18 @@ void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, flo
   }
 }
 
+void Fluid::AddParticle(glm::vec3 position, float energy)
+{
+	Particle* particle = new Particle(position, energy);
+	m_Particles.push_back(particle);
+}
+
 void Fluid::ClearParticles()
 {
+	for (int i = 0; i < m_Particles.size(); i++)
+	{
+		delete m_Particles[i];
+	}
 	m_Particles.clear();
 }
 

@@ -15,12 +15,20 @@
 #include "RegularGrid.h"
 #include "ShaderProgram.h"
 
-#define VISCOSITY 5000.0f
+#define VISCOSITY 10000.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 1000
-#define FLUID_PROPORTION_IN_CUBE 0.50f
+#define PARTICLE_NUMBER 5000
+#define FLUID_PROPORTION_IN_CUBE 0.5f
 #define CUBE_SIZE 0.75f
 #define RESOLUTION 4
+
+std::ifstream in;
+std::ofstream out;
+
+int frameNumber = 0;
+
+bool shouldRegisterSimulation = true;
+bool shouldPlayRegisteredSimulation = false;
 
 bool isRotating = false;
 glm::vec2 lastRotatingCursorPosition;
@@ -578,30 +586,123 @@ int init(int argc, char **argv)
 	return 0;
 }
 
-void update(float currentTime)
+void writeInt(std::ofstream& file, int val) {
+	file.write(reinterpret_cast<char *>(&val), sizeof(int));
+}
+
+void writeFloat(std::ofstream& file, float val) {
+	file.write(reinterpret_cast<char *>(&val), sizeof(float));
+}
+
+void writeFrameInFile(std::ofstream &out)
 {
+	writeInt(out, fluid->GetParticles().size());
+	for (int i = 0; i < fluid->GetParticles().size(); i++)
+	{
+		writeFloat(out, fluid->GetParticles()[i]->GetPosition().x);
+		writeFloat(out, fluid->GetParticles()[i]->GetPosition().y);
+		writeFloat(out, fluid->GetParticles()[i]->GetPosition().z);
+	}
+}
+
+bool readFrameInFile(std::ifstream &in)
+{
+	int numberOfParticles;
+	glm::vec3 position;
+	
+	in.read((char *)&numberOfParticles, sizeof(int));
+	if (numberOfParticles <= 0)
+	{
+		return false;
+	}
+	else
+	{
+		std::cout << "Number of particles : " << numberOfParticles << std::endl;
+		fluid->ClearParticles();
+		for (int i = 0; i < numberOfParticles; i++)
+		{
+			in.read((char *)&(position.x), sizeof(float));
+			in.read((char *)&(position.y), sizeof(float));
+			in.read((char *)&(position.z), sizeof(float));
+			fluid->AddParticle(position, 1.0f / numberOfParticles);
+		}
+	}
+	return true;
+}
+
+void update(float currentTime, bool realTimeSimulation)
+{
+	frameNumber += 1;
+
 	float dt = currentTime - initialTime;
 	initialTime = currentTime;
 
-	float timeFactor = dt * 0.0005f;
-
-	glm::vec3 maxSpeed = regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
-	currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor, 2.0f * CUBE_SIZE);
-	currentSizeOfGrid[1] = glm::min(currentSizeOfGrid[1] + maxSpeed[1] * timeFactor, 2.0f * CUBE_SIZE);
-	currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor, 2.0f * CUBE_SIZE);
-
-	fluid->UpdateParticlePositions(timeFactor * CUBE_SIZE, CUBE_SIZE);
-
-	regularGrids[regularGrids.size() - 1]->UpdateGradientAndVGradVOfCells();
-	regularGrids[regularGrids.size() - 1]->UpdateLaplacianOfCells();
-	regularGrids[regularGrids.size() - 1]->PushNavierStokesParametersToParticles();
-
-	if (fluid->GetParticles().size() < PARTICLE_NUMBER * 0.15)
+	float timeFactor;
+	if (realTimeSimulation)
 	{
-		regularGrids[regularGrids.size() - 1]->ResetNavierStokesParametersOfCells();
+		timeFactor = dt * 0.0005f;
+	}
+	else
+	{
+		timeFactor = 0.035f;
+	}
+
+	if (shouldPlayRegisteredSimulation)
+	{
 		clearParticles();
-		currentSizeOfGrid = glm::vec3(FLUID_PROPORTION_IN_CUBE*CUBE_SIZE*2.0);
-		generateParticles();
+		currentSizeOfGrid = glm::vec3(CUBE_SIZE*2.0);
+
+		if (in.good())
+		{
+			if (!readFrameInFile(in))
+			{
+				in.close();
+				in = std::ifstream("simulation.txt", std::ios_base::binary);
+				update(currentTime, realTimeSimulation);
+			}
+		}
+	}
+	else
+	{
+		glm::vec3 maxSpeed = regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
+		currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor, 2.0f * CUBE_SIZE);
+		currentSizeOfGrid[1] = glm::min(currentSizeOfGrid[1] + maxSpeed[1] * timeFactor, 2.0f * CUBE_SIZE);
+		currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor, 2.0f * CUBE_SIZE);
+
+		fluid->UpdateParticlePositions(timeFactor * CUBE_SIZE, CUBE_SIZE);
+
+		if (shouldRegisterSimulation)
+		{
+			if (out.good())
+			{
+				writeFrameInFile(out);
+			}
+		}
+
+		regularGrids[regularGrids.size() - 1]->UpdateGradientAndVGradVOfCells();
+		regularGrids[regularGrids.size() - 1]->UpdateLaplacianOfCells();
+		regularGrids[regularGrids.size() - 1]->PushNavierStokesParametersToParticles();
+
+		if (fluid->GetParticles().size() < PARTICLE_NUMBER * 0.02)
+		{
+			if (in.good())
+			{
+				in.close();
+			}
+			if (out.good())
+			{
+				out.close();
+			}
+			regularGrids[regularGrids.size() - 1]->ResetNavierStokesParametersOfCells();
+			clearParticles();
+			currentSizeOfGrid = glm::vec3(CUBE_SIZE*2.0);
+			generateParticles();
+			// Register only the first simulation for now.
+			shouldRegisterSimulation = false;
+			shouldPlayRegisteredSimulation = true;
+			in = std::ifstream("simulation.txt", std::ios_base::binary);
+			frameNumber = 0;
+		}
 	}
 
 	updatePositions();
@@ -704,7 +805,7 @@ void drawCellVAO()
 
 void render()
 {
-	update(glutGet(GLUT_ELAPSED_TIME));
+	update(glutGet(GLUT_ELAPSED_TIME), !shouldRegisterSimulation);
 	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); TEST_OPENGL_ERROR();
 
@@ -740,6 +841,12 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	initialTime = glutGet(GLUT_ELAPSED_TIME);
+
+	std::ofstream ofs("simulation.txt", std::ios::out | std::ios::trunc); // clear contents
+	ofs.close();
+
+	out = std::ofstream("simulation.txt", std::ios_base::binary);
+
 	glutDisplayFunc(render);
 	glutMainLoop();
 
