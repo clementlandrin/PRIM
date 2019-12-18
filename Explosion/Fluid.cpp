@@ -26,25 +26,38 @@ bool Fluid::PositionIsInCube(glm::vec3 position, float cubeSize)
 	}
 }
 
-void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, float width, float height, float depth)
+void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, float width, float height, float depth, float speedFactor)
 {
   srand (static_cast <unsigned> (time(0)));
   glm::vec3 position;
   glm::vec3 initialSpeed;
   for (int i = 0; i < particleNumber; i++)
   {
-    float x =  (origin.x - width*0.5 + rand() / (static_cast <float> (RAND_MAX/width)));
-    float y =  (origin.y - height*0.5 + rand() / (static_cast <float> (RAND_MAX/height)));
-    float z =  (origin.z - depth*0.5 + rand() / (static_cast <float> (RAND_MAX/depth)));
-    position = glm::vec3( x, y, z);
+    float x =  2.0 * rand() / (static_cast <float> (RAND_MAX)) - 1.0;
+    float y =  2.0 * rand() / (static_cast <float> (RAND_MAX)) - 1.0;
+    float z =  2.0 * rand() / (static_cast <float> (RAND_MAX)) - 1.0;
+	float length = rand() / (static_cast <float>(RAND_MAX));
+	position = glm::vec3(x, y, z);
+	position = glm::normalize(position);
+	position = position * length;
 	initialSpeed = glm::normalize(position);
-	initialSpeed.y = 1.0f;
+	initialSpeed.y = 2.0f;
+	initialSpeed = initialSpeed * speedFactor;
+
+	//initialSpeed = glm::vec3(0.0f, 1.0f, 0.0f);
+	position = position * glm::vec3(width*0.5, height*0.5, depth*0.5);
+	position = position + origin;
 
     Particle* particle = new Particle(position, 1.0f/particleNumber);
     particle->SetSpeed(initialSpeed);
 
     m_Particles.push_back(particle);
   }
+}
+
+void Fluid::ClearParticles()
+{
+	m_Particles.clear();
 }
 
 void Fluid::UpdateParticlePositions(float dt, float cubeSize)
@@ -66,7 +79,7 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize)
 }
 glm::vec3 Fluid::SpeedVariationByNavierStokes(Particle* particle)
 {
-	return m_Viscosity * particle->GetLaplacian() - particle->GetVGradV();
+	return (m_Viscosity * particle->GetLaplacian() - particle->GetVGradV())/m_Viscosity;
 }
 
 const float Fluid::GetViscosity() { return m_Viscosity; }

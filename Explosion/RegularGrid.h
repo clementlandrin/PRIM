@@ -18,9 +18,11 @@ public:
 	void SetSize(glm::vec3 size);
 	void SetResolution(int resolution);
 
-	void UpdateSpeedOfCells();
+	glm::vec3 UpdateSpeedOfCells();
 	void UpdateGradientAndVGradVOfCells();
 	void UpdateLaplacianOfCells();
+
+	void ResizeGrid(glm::vec3 size);
 
 	void ResetNavierStokesParametersOfCells();
 	void PushNavierStokesParametersToParticles();

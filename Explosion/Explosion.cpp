@@ -14,14 +14,16 @@
 #include "Cell.hpp"
 #include "RegularGrid.h"
 #include "ShaderProgram.h"
-#include "Explosion.h"
 
-#define VISCOSITY 1.0f
+#define VISCOSITY 5000.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 500
+#define PARTICLE_NUMBER 1000
 #define FLUID_PROPORTION_IN_CUBE 0.50f
 #define CUBE_SIZE 0.75f
 #define RESOLUTION 4
+
+bool isRotating = false;
+glm::vec2 lastRotatingCursorPosition;
 
 static float initialTime;
 
@@ -73,11 +75,54 @@ GLuint particleProgramID;
 GLuint lightingProgramID;
 GLuint cellProgramID;
 
+glm::vec3 currentSizeOfGrid = glm::vec3(FLUID_PROPORTION_IN_CUBE*CUBE_SIZE*2.0);
+
 #define TEST_OPENGL_ERROR()                                                             \
   do {		  							\
     GLenum err = glGetError(); 					                        \
     if (err != GL_NO_ERROR) std::cerr << "OpenGL ERROR! " << __LINE__ << std::endl;      \
   } while(0)
+
+void updateUniformMatrixOfShaders()
+{
+	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("model_view_matrix", model_view_matrix, lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("projection_matrix", projection_matrix, lightingProgramID); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+
+	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("model_view_matrix", model_view_matrix, particleProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("projection_matrix", projection_matrix, particleProgramID); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+
+	glUseProgram(cellProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("model_view_matrix", model_view_matrix, cellProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("projection_matrix", projection_matrix, cellProgramID); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+}
+
+void mouseButtonCallback(int button, int state, int x, int y)
+{
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	{
+		isRotating = true;
+		lastRotatingCursorPosition = glm::vec2(x, y);
+	}
+	else if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
+	{
+		isRotating = false;
+	}
+}
+
+void mousePositionCallback(int x, int y)
+{
+	if (isRotating)
+	{
+		model_view_matrix = glm::rotate(model_view_matrix, glm::radians((float)(lastRotatingCursorPosition.x - x)), glm::vec3(0.0, 1.0, 0.0));
+		updateUniformMatrixOfShaders();
+		lastRotatingCursorPosition = glm::vec2(x, y);
+	}
+}
 
 void updatePositions()
 {
@@ -234,7 +279,12 @@ void initBuffers()
 void generateParticles()
 {
 	float fluidInitialSpace = FLUID_PROPORTION_IN_CUBE * CUBE_SIZE;
-	fluid->GenerateParticlesUniformly(PARTICLE_NUMBER, glm::vec3(0.0), fluidInitialSpace, fluidInitialSpace, fluidInitialSpace);
+	fluid->GenerateParticlesUniformly(PARTICLE_NUMBER, glm::vec3(0.0, 0.0, 0.0), fluidInitialSpace, fluidInitialSpace, fluidInitialSpace, 0.1f);
+}
+
+void clearParticles()
+{
+	fluid->ClearParticles();
 }
 
 void initFluid()
@@ -482,7 +532,7 @@ void initScene()
 	actual_power_of_two_resolution = power_index;
 	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
 	{
-		regularGrids.push_back(new RegularGrid(pow(2, i), glm::vec3(CUBE_SIZE * 2.0)));
+		regularGrids.push_back(new RegularGrid(pow(2, i), currentSizeOfGrid));
 	}
 	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
 }
@@ -494,20 +544,7 @@ void initShaders()
 	lightingProgramID = ShaderProgram::LoadShaders("Resources/lighting_vertex.shd", "Resources/lighting_fragment.shd");
 	cellProgramID = ShaderProgram::LoadShaders("Resources/cell_vertex.shd", "Resources/cell_fragment.shd");
 
-	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("model_view_matrix", model_view_matrix, lightingProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("projection_matrix", projection_matrix, lightingProgramID); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();
-
-	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("model_view_matrix", model_view_matrix, particleProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("projection_matrix", projection_matrix, particleProgramID); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();
-
-	glUseProgram(cellProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("model_view_matrix", model_view_matrix, cellProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("projection_matrix", projection_matrix, cellProgramID); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();
+	updateUniformMatrixOfShaders();
 }
 
 void initOctree()
@@ -522,6 +559,8 @@ int init(int argc, char **argv)
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
 	glutCreateWindow(argv[0]); TEST_OPENGL_ERROR();
 	glutReshapeWindow(1024, 1024); TEST_OPENGL_ERROR();
+	glutMouseFunc(&mouseButtonCallback);
+	glutMotionFunc(&mousePositionCallback);
 	glPointSize(3.0);
 	if (glewInit() != GLEW_OK)
 	{
@@ -544,16 +583,24 @@ void update(float currentTime)
 	float dt = currentTime - initialTime;
 	initialTime = currentTime;
 
-	fluid->UpdateParticlePositions(dt * 0.0003f * CUBE_SIZE, CUBE_SIZE);
+	float timeFactor = dt * 0.0005f;
 
-	regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
+	glm::vec3 maxSpeed = regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
+	currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor, 2.0f * CUBE_SIZE);
+	currentSizeOfGrid[1] = glm::min(currentSizeOfGrid[1] + maxSpeed[1] * timeFactor, 2.0f * CUBE_SIZE);
+	currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor, 2.0f * CUBE_SIZE);
+
+	fluid->UpdateParticlePositions(timeFactor * CUBE_SIZE, CUBE_SIZE);
+
 	regularGrids[regularGrids.size() - 1]->UpdateGradientAndVGradVOfCells();
 	regularGrids[regularGrids.size() - 1]->UpdateLaplacianOfCells();
 	regularGrids[regularGrids.size() - 1]->PushNavierStokesParametersToParticles();
 
-	if (fluid->GetParticles().size() < PARTICLE_NUMBER / 10)
+	if (fluid->GetParticles().size() < PARTICLE_NUMBER * 0.15)
 	{
 		regularGrids[regularGrids.size() - 1]->ResetNavierStokesParametersOfCells();
+		clearParticles();
+		currentSizeOfGrid = glm::vec3(FLUID_PROPORTION_IN_CUBE*CUBE_SIZE*2.0);
 		generateParticles();
 	}
 
@@ -565,7 +612,13 @@ void update(float currentTime)
 	octreeRoot->UpdateParticlesInChildrenCells();
 
 	cellColorAndIntensity.clear();
-	UpdateCellVectors(octreeRoot, false);
+	cellPositions.clear();
+	UpdateCellVectors(octreeRoot, true);
+
+	for (int i = 0; i < regularGrids.size(); i++)
+	{
+		regularGrids[i]->ResizeGrid(currentSizeOfGrid);
+	}
 }
 
 void drawParticlesVBO()
@@ -574,6 +627,7 @@ void drawParticlesVBO()
 
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, m_particleVboID); TEST_OPENGL_ERROR();
+
 	glBufferSubData(GL_ARRAY_BUFFER, 0, particlePositions.size() * sizeof(float), &(particlePositions[0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
 	glDrawArrays(GL_POINTS, 0, particlePositions.size() / 3); TEST_OPENGL_ERROR();

@@ -20,7 +20,7 @@ public:
 	void ClearParticles();
 	void EraseParticleAtIndex(int index);
 	void ComputeEnergy();
-	void UpdateSpeed();
+	glm::vec3 UpdateSpeed();
 	const glm::vec3 ComputeCenter();
 	void ComputeGradientAndVGradV();
 	void ComputeLaplacian();

@@ -20,7 +20,8 @@ public:
 
   ~Fluid();
 
-  void GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, float width, float height, float depth);
+  void GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, float width, float height, float depth, float speedFactor);
+  void ClearParticles();
   void UpdateParticlePositions(float dt, float cubeSize);
   glm::vec3 SpeedVariationByNavierStokes(Particle* particle);
 

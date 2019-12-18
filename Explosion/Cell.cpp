@@ -55,7 +55,7 @@ void Cell::ComputeEnergy()
   }
 }
 
-void Cell::UpdateSpeed()
+glm::vec3 Cell::UpdateSpeed()
 {
 	m_Speed = glm::vec3(0.0);
 	for (int i = 0; i < m_Particles.size(); i++)
@@ -66,6 +66,7 @@ void Cell::UpdateSpeed()
 	{
 		m_Speed /= m_Particles.size();
 	}
+	return m_Speed;
 }
 
 std::vector<Particle*> Cell::GetParticles()
