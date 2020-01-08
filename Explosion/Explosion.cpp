@@ -15,6 +15,9 @@
 #include "RegularGrid.h"
 #include "ShaderProgram.h"
 
+#define GLUT_SPACE 32
+#define GLUT_ESC 27
+
 #define VISCOSITY 10000.0f
 #define DENSITY 1.0f
 #define PARTICLE_NUMBER 5000
@@ -24,6 +27,8 @@
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 std::ifstream in;
 std::ofstream out;
+
+bool pause = false;
 
 int frameNumber = 0;
 
@@ -132,6 +137,27 @@ void mousePositionCallback(int x, int y)
 		model_view_matrix = glm::rotate(model_view_matrix, glm::radians((float)(lastRotatingCursorPosition.x - x)), glm::vec3(0.0, 1.0, 0.0));
 		updateUniformMatrixOfShaders();
 		lastRotatingCursorPosition = glm::vec2(x, y);
+	}
+}
+
+void keyboardCallback(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case GLUT_SPACE:
+		pause = !pause;
+		if (pause)
+		{
+			std::cout << "Pause simulation" << std::endl;
+		}
+		else
+		{
+			std::cout << "Resume simulation" << std::endl;
+		}
+		break;
+	case GLUT_ESC:
+		exit(0);
+		break;
 	}
 }
 
@@ -579,6 +605,7 @@ int init(int argc, char **argv)
 	glutReshapeWindow(1024, 1024); TEST_OPENGL_ERROR();
 	glutMouseFunc(&mouseButtonCallback);
 	glutMotionFunc(&mousePositionCallback);
+	glutKeyboardFunc(&keyboardCallback);
 	glPointSize(3.0);
 	if (glewInit() != GLEW_OK)
 	{
@@ -847,8 +874,11 @@ void drawCellVAO()
 
 void render()
 {
-	update(glutGet(GLUT_ELAPSED_TIME), !shouldRegisterSimulation);
-	
+	if (!pause)
+	{
+		update(glutGet(GLUT_ELAPSED_TIME), !shouldRegisterSimulation);
+	}
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); TEST_OPENGL_ERROR();
 
 	drawParticlesVBO();
