@@ -228,6 +228,13 @@ Cell * Cell::GetOnBackCell()
 
 void Cell::ComputeGradientAndVGradV()
 {
+	if (m_Particles.size() == 0)
+	{
+		m_Gradient = glm::vec3(0.0f);
+		m_VGradv = glm::vec3(0.0f);
+		return;
+	}
+
 	Cell* front_cell = GetOnFrontCell();
 	Cell* back_cell = GetOnBackCell();
 	Cell* top_cell = GetOnTopCell();
@@ -281,6 +288,12 @@ void Cell::ComputeGradientAndVGradV()
 
 void Cell::ComputeLaplacian()
 {
+	if (m_Particles.size() == 0)
+	{
+		m_Laplacian = glm::vec3(0.0f);
+		return;
+	}
+
 	Cell* front_cell = GetOnFrontCell();
 	Cell* back_cell = GetOnBackCell();
 	Cell* top_cell = GetOnTopCell();
