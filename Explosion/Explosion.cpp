@@ -43,7 +43,7 @@ bool pause = false;
 int frameNumber = 0;
 
 bool shouldGenerateNewParticlesEachFrame = false;
-bool shouldRenderLighting = false;
+bool shouldRenderLighting = true;
 bool shouldRegisterSimulation = false;
 bool shouldPlayRegisteredSimulation = true;
 
