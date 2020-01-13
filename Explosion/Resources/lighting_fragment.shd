@@ -15,6 +15,7 @@ uniform vec4 albedo;
 
 in vec4 fPosition;
 in vec4 fNormal;
+in vec4 fPositionInWorld;
 
 // Arrays in a UBO must use a constant expression for their size.
 const int MY_ARRAY_SIZE = 73; // either 1, 9, 73 or 585
@@ -22,7 +23,9 @@ const int MY_ARRAY_SIZE = 73; // either 1, 9, 73 or 585
 // The name of the block is used for finding the index location only
 layout (std140, binding = 0) uniform lightSourcesBlock {
   LightSource myArray [MY_ARRAY_SIZE]; // This is the important name (in the shader).
-  int number_of_lights;
+  vec4 number_of_lights;
+  vec4 spheres [1];
+  vec4 number_of_spheres;
 };
 
 float computeDiffuseFromLight(vec3 lightPosition)
@@ -31,13 +34,40 @@ float computeDiffuseFromLight(vec3 lightPosition)
   return max(-dot(fNormal.xyz, wi), 0.0);
 }
 
+bool intersect(vec3 rayOrigin, vec3 rayDirection, vec3 center, float radius)
+{
+    vec3 oc = rayOrigin - center;
+    float a = dot(rayDirection, rayDirection);
+    float b = 2.0 * dot(oc, rayDirection);
+    float c = dot(oc,oc) - radius*radius;
+    float discriminant = b*b - 4*a*c;
+    if(discriminant < 0){
+        return false;
+    }
+    else{
+        if (dot(rayDirection, center - rayOrigin) > 0.0)
+		{
+			return true;
+		}
+		return false;
+    }
+}
+
 void main() {
   vec3 totalColor = vec3(0.0);
-  for (int i = 0; i < number_of_lights; i++)
+  for (int i = 0; i < number_of_lights.x; i++)
   {
-    vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
-	contributionFromLightI *= myArray[i].color_and_intensity.w;
-    totalColor += contributionFromLightI;
+	bool didIntersectASphere = false;
+	for (int j = 0; j < number_of_spheres.x; j++)
+	{
+		didIntersectASphere = didIntersectASphere || intersect(myArray[i].position.xyz, fPositionInWorld.xyz - myArray[i].position.xyz, spheres[j].xyz, spheres[j].z);
+	}
+	if (!didIntersectASphere)
+	{
+		vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
+		contributionFromLightI *= myArray[i].color_and_intensity.w;
+		totalColor += contributionFromLightI;
+	}
   }
 
   output_color = albedo * vec4(totalColor, 1.0);

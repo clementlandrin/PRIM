@@ -36,7 +36,7 @@
 #define RESOLUTION 4
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 
-#define NUMBER_OF_SPHERE 2
+#define NUMBER_OF_SPHERE 1
 
 std::ifstream in;
 std::ofstream out;
@@ -184,7 +184,7 @@ std::vector<std::vector<int>> sphereIndices;
 std::vector<float> cellPositions;
 std::vector<float> cellColorAndIntensity;
 
-std::vector<Sphere> spheres;
+std::vector<Sphere*> spheres;
 std::vector<LightSource> lightSources;
 std::vector<RegularGrid*> regularGrids;
 
@@ -452,7 +452,7 @@ void initParticleUBO()
 {
 	glGenBuffers(1, &m_particleUBO); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + sizeof(int), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + 2 * sizeof(glm::vec4) + sizeof(glm::vec4) * spheres.size(), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
@@ -788,21 +788,32 @@ void createSphere(glm::vec3 origin, float radius, int resolution, int index)
 	}
 }
 
+void translateSphere(glm::vec3 translation, int index)
+{
+	for (int i = 0; i < spherePositions[index].size() / 3; ++i)
+	{
+		spherePositions[index][3 * i] += translation.x;
+		spherePositions[index][3 * i + 1] += translation.y;
+		spherePositions[index][3 * i + 2] += translation.z;
+	}
+}
+
 void initScene()
 {
 	createSquare();
 
-	int sphere_resolution = 10;
+	int sphere_resolution = 100;
 
-	spheres.push_back(Sphere(0.1, Vec(-0.5, 0.0, -0.5), Vec(1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
-	spheres.push_back(Sphere(0.2, Vec(0.0, 0.5, 0.5), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::DIFFUSE));
+	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
+	//spheres.push_back(Sphere(0.2, Vec(0.0, 0.5, 0.5), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::DIFFUSE));
+
 	spherePositions.resize(spheres.size());
 	sphereNormals.resize(spheres.size());
 	sphereIndices.resize(spheres.size());
 
 	for (int i = 0; i < spheres.size(); i++)
 	{
-		createSphere(glm::vec3(spheres[i].p.x, spheres[i].p.y, spheres[i].p.z), spheres[i].radius, sphere_resolution, i);
+		createSphere(glm::vec3(spheres[i]->p.x, spheres[i]->p.y, spheres[i]->p.z), spheres[i]->radius, sphere_resolution, i);
 	}
 
 	int power_index = 0;
@@ -917,6 +928,11 @@ bool readFrameInFile(std::ifstream &in)
 void update(float currentTime, bool realTimeSimulation)
 {
 	frameNumber += 1;
+
+	glm::vec3 sphereNewPosition = glm::vec3(0.5f * cos(currentTime/100000.0f), 0.0f, 0.5f * sin(currentTime/100000.0f));
+	translateSphere(sphereNewPosition - glm::vec3(spheres[0]->p.x, spheres[0]->p.y, spheres[0]->p.z), 0);
+	spheres[0]->p = Vec(sphereNewPosition.x, sphereNewPosition.y, sphereNewPosition.z);
+
 
 	float dt = currentTime - initialTime;
 	initialTime = currentTime;
@@ -1038,11 +1054,8 @@ void drawParticlesVBO()
 	glUseProgram(0); TEST_OPENGL_ERROR();
 }
 
-void drawSphereVAO(int index)
+void updateUBO()
 {
-	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("albedo",glm::vec4(spheres[index].c.x, spheres[index].c.y, spheres[index].c.z, 1.0f), lightingProgramID); TEST_OPENGL_ERROR();
-
 	if (shouldRenderLighting)
 	{
 		lightSources.resize(cellPositions.size() / 3);
@@ -1060,16 +1073,34 @@ void drawSphereVAO(int index)
 		lightSources[0].color_and_intensity = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
+	std::vector<glm::vec4> spherePositionAndRadius;
+	for (int i = 0; i < NUMBER_OF_SPHERE; i++)
+	{
+		spherePositionAndRadius.push_back(glm::vec4(spheres[i]->p.x, spheres[i]->p.y, spheres[i]->p.z, spheres[i]->radius));
+	}
+	GLsizei sizeOfSphereArray = spherePositionAndRadius.size() * sizeof(glm::vec4);
+	glm::vec4 actualNumberOfSpheres[1] = { glm::vec4(spheres.size(), 0.0f, 0.0f, 0.0f) };
+
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
-	int actualNumberOfCells[1] = { lightSources.size() };
-	GLsizei sifeOfArray = lightSources.size() * sizeof(LightSource);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
+	glm::vec4 actualNumberOfCells[1] = { glm::vec4(lightSources.size(), 0.0f, 0.0f, 0.0f) };
+	GLsizei sizeOfArray = lightSources.size() * sizeof(LightSource);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray, sizeof(glm::vec4), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4), sizeOfSphereArray, &(spherePositionAndRadius[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4) + sizeOfSphereArray, sizeof(glm::vec4), &(actualNumberOfSpheres)); TEST_OPENGL_ERROR();
 
 	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock"); TEST_OPENGL_ERROR();
 	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0); TEST_OPENGL_ERROR();
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
+}
+
+void drawSphereVAO(int index)
+{
+	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("albedo",glm::vec4(spheres[index]->c.x, spheres[index]->c.y, spheres[index]->c.z, 1.0f), lightingProgramID); TEST_OPENGL_ERROR();
+
+	updateUBO();
 
 	glBindVertexArray(m_sphereVao[index]); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
@@ -1096,33 +1127,7 @@ void drawCubeVAO()
 
 	ShaderProgram::set("albedo", glm::vec4(1.0), lightingProgramID); TEST_OPENGL_ERROR();
 
-	if (shouldRenderLighting)
-	{
-		lightSources.resize(cellPositions.size() / 3);
-
-		for (int i = 0; i < cellPositions.size() / 3; i++)
-		{
-			lightSources[i].position = glm::vec4(cellPositions[3 * i], cellPositions[3 * i + 1], cellPositions[3 * i + 2], 1.0);
-			lightSources[i].color_and_intensity = glm::vec4(cellColorAndIntensity[4 * i], cellColorAndIntensity[4 * i + 1], cellColorAndIntensity[4 * i + 2], cellColorAndIntensity[4 * i + 3]);
-		}
-	}
-	else
-	{
-		lightSources.resize(1);
-		lightSources[0].position = glm::vec4(0.0f);
-		lightSources[0].color_and_intensity = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-	}
-
-	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
-	int actualNumberOfCells[1] = { lightSources.size() };
-	GLsizei sifeOfArray = lightSources.size() * sizeof(LightSource);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
-
-	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock"); TEST_OPENGL_ERROR();
-	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0); TEST_OPENGL_ERROR();
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
+	updateUBO();
 
 	glBindVertexArray(m_squareVao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
@@ -1233,7 +1238,7 @@ inline bool intersectScene(const Ray &r, double &t, int &id)
 {
 	double d, inf = t = 1e20;
 	for (int i = 0; i < spheres.size(); ++i)
-		if ((d = spheres[i].intersect(r)) && d < t)
+		if ((d = spheres[i]->intersect(r)) && d < t)
 		{
 			t = d;
 			id = i;
@@ -1278,7 +1283,7 @@ Vec radiance(const Ray &r, int depth)
 	if (!intersectScene(r, t, id))
 		return Vec(); // if miss, return black
 
-	const Sphere &obj = spheres[id]; // the hit object
+	const Sphere &obj = *spheres[id]; // the hit object
 
 	Vec x = r.o + r.d * t,           // the hit position
 		n = (x - obj.p).normalize(), // the normal of the object at the hit
@@ -1300,7 +1305,7 @@ Vec radiance(const Ray &r, int depth)
 		Vec rad;
 		for (unsigned int lightIt = 0; lightIt < lights.size(); ++lightIt)
 		{
-			const Sphere &light = spheres[lights[lightIt]];
+			const Sphere &light = *spheres[lights[lightIt]];
 
 			// TODO
 			const Vec dirToLight = (light.randomSample() - x).normalize();
@@ -1358,15 +1363,14 @@ void computeRayTracedImage()
 	Vec cx = Vec(w * .5135 / h), cy = (cx.cross(cam.d)).normalize() * .5135, *pixelsColor = new Vec[w * h];
 
 	// setup scene:
-	spheres.push_back(Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6), Vec(0, 0, 0), Vec(.75, .25, .25), DIFFUSE));   //Left
+	/*spheres.push_back(Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6), Vec(0, 0, 0), Vec(.75, .25, .25), DIFFUSE));   //Left
 	spheres.push_back(Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(0, 0, 0), Vec(.25, .25, .75), DIFFUSE)); //Rght
 	spheres.push_back(Sphere(1e5, Vec(50, 40.8, 1e5), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Back
 	spheres.push_back(Sphere(1e5, Vec(50, 40.8, -1e5 + 170), Vec(0, 0, 0), Vec(0, 0, 0), DIFFUSE));        //Front
 	spheres.push_back(Sphere(1e5, Vec(50, 1e5, 81.6), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Bottom
-	spheres.push_back(Sphere(1e5, Vec(50, -1e5 + 81.6, 81.6), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE)); //Top
 	spheres.push_back(Sphere(16.5, Vec(27, 16.5, 47), Vec(0, 0, 0), Vec(1, 1, 1) * .999, MIRROR));         //Mirr
 	spheres.push_back(Sphere(16.5, Vec(73, 16.5, 78), Vec(0, 0, 0), Vec(1, 1, 1) * .999, GLASS));         //Change to Glass
-	spheres.push_back(Sphere(5, Vec(50, 70, 50), Vec(1, 1, 1), Vec(0, 0, 0), EMMISSIVE));                  //Light
+	spheres.push_back(Sphere(5, Vec(50, 70, 50), Vec(1, 1, 1), Vec(0, 0, 0), EMMISSIVE));     */             //Light
 	lights.push_back(8);
 
 	// ray trace:
