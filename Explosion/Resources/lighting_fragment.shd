@@ -11,6 +11,8 @@ struct LightSource
 uniform mat4 model_view_matrix;
 uniform mat4 projection_matrix;
 
+uniform vec4 albedo;
+
 in vec4 fPosition;
 in vec4 fNormal;
 
@@ -38,5 +40,5 @@ void main() {
     totalColor += contributionFromLightI;
   }
 
-  output_color = vec4(totalColor, 1.0);
+  output_color = albedo * vec4(totalColor, 1.0);
 }

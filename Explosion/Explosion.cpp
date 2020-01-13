@@ -35,6 +35,9 @@
 #define CUBE_SIZE 0.75f
 #define RESOLUTION 4
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
+
+#define NUMBER_OF_SPHERE 2
+
 std::ifstream in;
 std::ofstream out;
 
@@ -56,6 +59,98 @@ static float zeroTimeOfSimulation;
 int actual_power_of_two_resolution;
 
 void computeRayTracedImage();
+
+struct Vec
+{
+	double x, y, z;
+	Vec(double x_ = 0, double y_ = 0, double z_ = 0)
+	{
+		x = x_;
+		y = y_;
+		z = z_;
+	}
+	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z); }
+	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z); }
+	Vec operator*(double b) const { return Vec(x * b, y * b, z * b); }
+	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z); }
+	Vec &normalize() { return *this = *this * (1 / sqrt(x * x + y * y + z * z)); }
+	double dot(const Vec &b) const { return x * b.x + y * b.y + z * b.z; }
+	Vec cross(Vec &b) { return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x); }
+};
+Vec operator*(double b, Vec const &o) { return Vec(o.x * b, o.y * b, o.z * b); }
+
+void generateRandomPointOnSphere(double &theta, double &phi)
+{
+	double x = (double)(rand()) / RAND_MAX;
+	double y = (double)(rand()) / RAND_MAX;
+	theta = x * 2.0 * M_PI;
+	phi = acos(std::min<double>(1.0, std::max<double>(-1.0, 2.0 * y - 1.0)));
+}
+Vec randomSampleOnSphere()
+{
+	double theta, phi;
+	generateRandomPointOnSphere(theta, phi);
+	return Vec(cos(theta) * cos(phi), sin(theta) * cos(phi), sin(phi));
+}
+Vec randomSampleOnHemisphere(Vec const &upDirection)
+{
+	Vec r = randomSampleOnSphere();
+	if (r.dot(upDirection) > 0.0)
+		return r;
+	return -1.0 * r;
+}
+
+struct Ray
+{
+	Vec o, d;
+	Ray(Vec o_, Vec d_) : o(o_), d(d_)
+	{
+		d.normalize();
+	}
+};
+
+enum Refl_t
+{
+	DIFFUSE,
+	MIRROR,
+	GLASS,
+	EMMISSIVE
+}; // material types, used in radiance()
+
+struct Sphere
+{
+	double radius; // radius
+	Vec p, e, c;   // position, emission, color
+	Refl_t refl;   // reflection type (DIFFuse, SPECular, REFRactive)
+	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_) : radius(rad_), p(p_), e(e_), c(c_), refl(refl_) {}
+
+	double intersect(const Ray &r) const
+	{ // returns distance, 0 if nohit
+		// TODO
+		Vec oc = r.o - p;
+		double sa = 1.0;
+		double sb = 2.0 * oc.dot(r.d);
+		double sc = oc.dot(oc) - radius * radius;
+
+		double delta = sb * sb - 4.0 * sa * sc;
+		if (delta < 0.0)
+			return 0.0; // no solution
+
+		double deltaSqrt = sqrt(delta);
+		double lambda1 = (-sb - deltaSqrt) / (2.0 * sa);
+		double lambda2 = (-sb + deltaSqrt) / (2.0 * sa);
+		if (lambda1 < lambda2 && lambda1 >= 0.0)
+			return lambda1;
+		if (lambda2 >= 0.0)
+			return lambda2;
+		return 0.0;
+	}
+
+	Vec randomSample() const
+	{
+		return p + radius * randomSampleOnSphere();
+	}
+};
 
 struct LightSource
 {
@@ -81,11 +176,15 @@ int numberOfCells;
 std::vector<float> particlePositions;
 std::vector<float> squarePositions;
 std::vector<float> squareNormals;
-std::vector<float> spherePositions;
-std::vector<float> sphereNormals;
-std::vector<int> sphereIndices;
+
+std::vector<std::vector<float>> spherePositions;
+std::vector<std::vector<float>> sphereNormals;
+std::vector<std::vector<int>> sphereIndices;
+
 std::vector<float> cellPositions;
 std::vector<float> cellColorAndIntensity;
+
+std::vector<Sphere> spheres;
 std::vector<LightSource> lightSources;
 std::vector<RegularGrid*> regularGrids;
 
@@ -98,10 +197,10 @@ GLuint m_squarePositionVboID;
 GLuint m_squareNormalVBO;
 GLuint m_squareVao;
 
-GLuint m_spherePositionVboID;
-GLuint m_sphereNormalVBO;
-GLuint m_sphereIBO;
-GLuint m_sphereVao;
+GLuint m_spherePositionVboID[NUMBER_OF_SPHERE];
+GLuint m_sphereNormalVBO[NUMBER_OF_SPHERE];
+GLuint m_sphereIBO[NUMBER_OF_SPHERE];
+GLuint m_sphereVao[NUMBER_OF_SPHERE];
 
 GLuint m_cellPositionVboID;
 GLuint m_cellColorAndIntensityVboID;
@@ -296,31 +395,31 @@ void initCellVAO()
 	glBindVertexArray(0); TEST_OPENGL_ERROR(); // Desactive the VAO just created. Will be activated at rendering time.
 }
 
-void initSphereVAO()
+void initSphereVAO(int index)
 {
-	glCreateBuffers(1, &m_spherePositionVboID); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
-	size_t vertexBufferSize = sizeof(float) * spherePositions.size(); // Gather the size of the buffer from the CPU-side vector
-	glNamedBufferStorage(m_spherePositionVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR(); // Create a data store on the GPU
-	glNamedBufferSubData(m_spherePositionVboID, 0, vertexBufferSize, spherePositions.data()); TEST_OPENGL_ERROR(); // Fill the data store from a CPU array
+	glCreateBuffers(1, &m_spherePositionVboID[index]); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
+	size_t vertexBufferSize = sizeof(float) * spherePositions[index].size(); // Gather the size of the buffer from the CPU-side vector
+	glNamedBufferStorage(m_spherePositionVboID[index], vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR(); // Create a data store on the GPU
+	glNamedBufferSubData(m_spherePositionVboID[index], 0, vertexBufferSize, spherePositions[index].data()); TEST_OPENGL_ERROR(); // Fill the data store from a CPU array
 
-	glCreateBuffers(1, &m_sphereNormalVBO); TEST_OPENGL_ERROR(); // Same for normal
-	glNamedBufferStorage(m_sphereNormalVBO, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
-	glNamedBufferSubData(m_sphereNormalVBO, 0, vertexBufferSize, sphereNormals.data()); TEST_OPENGL_ERROR();
+	glCreateBuffers(1, &m_sphereNormalVBO[index]); TEST_OPENGL_ERROR(); // Same for normal
+	glNamedBufferStorage(m_sphereNormalVBO[index], vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
+	glNamedBufferSubData(m_sphereNormalVBO[index], 0, vertexBufferSize, sphereNormals[index].data()); TEST_OPENGL_ERROR();
 
-	glCreateBuffers(1, &m_sphereIBO); TEST_OPENGL_ERROR(); // Same for the index buffer, that stores the list of indices of the triangles forming the mesh
-	size_t indexBufferSize = sizeof(float) * sphereIndices.size();
-	glNamedBufferStorage(m_sphereIBO, indexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
-	glNamedBufferSubData(m_sphereIBO, 0, indexBufferSize, sphereIndices.data()); TEST_OPENGL_ERROR();
+	glCreateBuffers(1, &m_sphereIBO[index]); TEST_OPENGL_ERROR(); // Same for the index buffer, that stores the list of indices of the triangles forming the mesh
+	size_t indexBufferSize = sizeof(float) * sphereIndices[index].size();
+	glNamedBufferStorage(m_sphereIBO[index], indexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
+	glNamedBufferSubData(m_sphereIBO[index], 0, indexBufferSize, sphereIndices[index].data()); TEST_OPENGL_ERROR();
 
-	glCreateVertexArrays(1, &m_sphereVao); TEST_OPENGL_ERROR(); // Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
-	glBindVertexArray(m_sphereVao); TEST_OPENGL_ERROR();
+	glCreateVertexArrays(1, &m_sphereVao[index]); TEST_OPENGL_ERROR(); // Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
+	glBindVertexArray(m_sphereVao[index]); TEST_OPENGL_ERROR();
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_spherePositionVboID); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_spherePositionVboID[index]); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
 	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_sphereNormalVBO); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_sphereNormalVBO[index]); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_sphereIBO); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_sphereIBO[index]); TEST_OPENGL_ERROR();
 	glBindVertexArray(0); TEST_OPENGL_ERROR();// Desactive the VAO just created. Will be activated at rendering time.
 }
 
@@ -371,7 +470,10 @@ void initBuffers()
 
 	////////////////////////////////
 
-	initSphereVAO();
+	for (int i = 0; i < spheres.size(); i++)
+	{
+		initSphereVAO(i);
+	}
 
 	////////////////////////////////
 
@@ -618,7 +720,7 @@ void createSquare()
 	frontFace(5 * vertexPerFace, CUBE_SIZE);
 }
 
-void createSphere(glm::vec3 origin, float radius, int resolution)
+void createSphere(glm::vec3 origin, float radius, int resolution, int index)
 {
 	float x, y, z, xy;                              // vertex position
 	float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
@@ -643,17 +745,17 @@ void createSphere(glm::vec3 origin, float radius, int resolution)
 			// vertex position (x, y, z)
 			x = xy * cosf(sectorAngle);             // r * cos(u) * cos(v)
 			y = xy * sinf(sectorAngle);             // r * cos(u) * sin(v)
-			spherePositions.push_back(x + origin.x);
-			spherePositions.push_back(y + origin.y);
-			spherePositions.push_back(z + origin.z);
+			spherePositions[index].push_back(x + origin.x);
+			spherePositions[index].push_back(y + origin.y);
+			spherePositions[index].push_back(z + origin.z);
 
 			// normalized vertex normal (nx, ny, nz)
 			nx = x * lengthInv;
 			ny = y * lengthInv;
 			nz = z * lengthInv;
-			sphereNormals.push_back(nx);
-			sphereNormals.push_back(ny);
-			sphereNormals.push_back(nz);
+			sphereNormals[index].push_back(nx);
+			sphereNormals[index].push_back(ny);
+			sphereNormals[index].push_back(nz);
 		}
 	}
 
@@ -670,17 +772,17 @@ void createSphere(glm::vec3 origin, float radius, int resolution)
 			// k1 => k2 => k1+1
 			if (i != 0)
 			{
-				sphereIndices.push_back(k1);
-				sphereIndices.push_back(k2);
-				sphereIndices.push_back(k1 + 1);
+				sphereIndices[index].push_back(k1);
+				sphereIndices[index].push_back(k2);
+				sphereIndices[index].push_back(k1 + 1);
 			}
 
 			// k1+1 => k2 => k2+1
 			if (i != (resolution - 1))
 			{
-				sphereIndices.push_back(k1 + 1);
-				sphereIndices.push_back(k2);
-				sphereIndices.push_back(k2 + 1);
+				sphereIndices[index].push_back(k1 + 1);
+				sphereIndices[index].push_back(k2);
+				sphereIndices[index].push_back(k2 + 1);
 			}
 		}
 	}
@@ -690,7 +792,18 @@ void initScene()
 {
 	createSquare();
 
-	createSphere(glm::vec3(-0.5f, 0.0f, -0.5f), 0.1f, 10);
+	int sphere_resolution = 10;
+
+	spheres.push_back(Sphere(0.1, Vec(-0.5, 0.0, -0.5), Vec(1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
+	spheres.push_back(Sphere(0.2, Vec(0.0, 0.5, 0.5), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::DIFFUSE));
+	spherePositions.resize(spheres.size());
+	sphereNormals.resize(spheres.size());
+	sphereIndices.resize(spheres.size());
+
+	for (int i = 0; i < spheres.size(); i++)
+	{
+		createSphere(glm::vec3(spheres[i].p.x, spheres[i].p.y, spheres[i].p.z), spheres[i].radius, sphere_resolution, i);
+	}
 
 	int power_index = 0;
 	float temp = (float)RESOLUTION;
@@ -925,9 +1038,10 @@ void drawParticlesVBO()
 	glUseProgram(0); TEST_OPENGL_ERROR();
 }
 
-void drawSphereVAO()
+void drawSphereVAO(int index)
 {
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("albedo",glm::vec4(spheres[index].c.x, spheres[index].c.y, spheres[index].c.z, 1.0f), lightingProgramID); TEST_OPENGL_ERROR();
 
 	if (shouldRenderLighting)
 	{
@@ -957,18 +1071,18 @@ void drawSphereVAO()
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 
-	glBindVertexArray(m_sphereVao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
+	glBindVertexArray(m_sphereVao[index]); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_spherePositionVboID); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_ARRAY_BUFFER, 0, spherePositions.size() * sizeof(float), &(spherePositions[0])); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_spherePositionVboID[index]); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, spherePositions[index].size() * sizeof(float), &(spherePositions[index][0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
 
 	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_sphereNormalVBO); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sphereNormals.size() * sizeof(float), &(sphereNormals[0])); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_sphereNormalVBO[index]); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sphereNormals[index].size() * sizeof(float), &(sphereNormals[index][0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
 
-	glDrawElements(GL_TRIANGLES, static_cast<GLsizei> (sphereIndices.size()), GL_UNSIGNED_INT, 0); // Call for rendering: stream the current GPU geometry through the current GPU program
+	glDrawElements(GL_TRIANGLES, static_cast<GLsizei> (sphereIndices[index].size()), GL_UNSIGNED_INT, 0); // Call for rendering: stream the current GPU geometry through the current GPU program
 
 	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
@@ -979,6 +1093,8 @@ void drawSphereVAO()
 void drawCubeVAO()
 {
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+
+	ShaderProgram::set("albedo", glm::vec4(1.0), lightingProgramID); TEST_OPENGL_ERROR();
 
 	if (shouldRenderLighting)
 	{
@@ -1064,7 +1180,11 @@ void render()
 
 	drawCubeVAO();
 
-	drawSphereVAO();
+	for (int i = 0; i < spheres.size(); i++)
+	{
+		drawSphereVAO(i);
+	}
+
 
 	if (shouldRegisterSimulation && shouldRenderLighting)
 	{
@@ -1080,7 +1200,10 @@ void clear()
 {
 	glDeleteBuffers(1, &m_particleVboID); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squarePositionVboID); TEST_OPENGL_ERROR();
-	glDeleteBuffers(1, &m_spherePositionVboID); TEST_OPENGL_ERROR();
+	for (int i = 0; i < NUMBER_OF_SPHERE; i++)
+	{
+		glDeleteBuffers(1, &m_spherePositionVboID[i]); TEST_OPENGL_ERROR();
+	}
 	glDeleteBuffers(1, &m_squareNormalVBO); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squareVao); TEST_OPENGL_ERROR();
 
@@ -1092,100 +1215,8 @@ void clear()
 	delete fluid;
 }
 
-struct Vec
-{
-	double x, y, z;
-	Vec(double x_ = 0, double y_ = 0, double z_ = 0)
-	{
-		x = x_;
-		y = y_;
-		z = z_;
-	}
-	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z); }
-	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z); }
-	Vec operator*(double b) const { return Vec(x * b, y * b, z * b); }
-	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z); }
-	Vec &normalize() { return *this = *this * (1 / sqrt(x * x + y * y + z * z)); }
-	double dot(const Vec &b) const { return x * b.x + y * b.y + z * b.z; }
-	Vec cross(Vec &b) { return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x); }
-};
-Vec operator*(double b, Vec const &o) { return Vec(o.x * b, o.y * b, o.z * b); }
-
-void generateRandomPointOnSphere(double &theta, double &phi)
-{
-	double x = (double)(rand()) / RAND_MAX;
-	double y = (double)(rand()) / RAND_MAX;
-	theta = x * 2.0 * M_PI;
-	phi = acos(std::min<double>(1.0, std::max<double>(-1.0, 2.0 * y - 1.0)));
-}
-Vec randomSampleOnSphere()
-{
-	double theta, phi;
-	generateRandomPointOnSphere(theta, phi);
-	return Vec(cos(theta) * cos(phi), sin(theta) * cos(phi), sin(phi));
-}
-Vec randomSampleOnHemisphere(Vec const &upDirection)
-{
-	Vec r = randomSampleOnSphere();
-	if (r.dot(upDirection) > 0.0)
-		return r;
-	return -1.0 * r;
-}
-
-struct Ray
-{
-	Vec o, d;
-	Ray(Vec o_, Vec d_) : o(o_), d(d_)
-	{
-		d.normalize();
-	}
-};
-
-enum Refl_t
-{
-	DIFFUSE,
-	MIRROR,
-	GLASS,
-	EMMISSIVE
-}; // material types, used in radiance()
-
-struct Sphere
-{
-	double radius; // radius
-	Vec p, e, c;   // position, emission, color
-	Refl_t refl;   // reflection type (DIFFuse, SPECular, REFRactive)
-	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_) : radius(rad_), p(p_), e(e_), c(c_), refl(refl_) {}
-
-	double intersect(const Ray &r) const
-	{ // returns distance, 0 if nohit
-		// TODO
-		Vec oc = r.o - p;
-		double sa = 1.0;
-		double sb = 2.0 * oc.dot(r.d);
-		double sc = oc.dot(oc) - radius * radius;
-
-		double delta = sb * sb - 4.0 * sa * sc;
-		if (delta < 0.0)
-			return 0.0; // no solution
-
-		double deltaSqrt = sqrt(delta);
-		double lambda1 = (-sb - deltaSqrt) / (2.0 * sa);
-		double lambda2 = (-sb + deltaSqrt) / (2.0 * sa);
-		if (lambda1 < lambda2 && lambda1 >= 0.0)
-			return lambda1;
-		if (lambda2 >= 0.0)
-			return lambda2;
-		return 0.0;
-	}
-
-	Vec randomSample() const
-	{
-		return p + radius * randomSampleOnSphere();
-	}
-};
-
 // Scene :
-std::vector<Sphere> spheres;
+//std::vector<Sphere> spheres;
 std::vector<unsigned int> lights;
 // lights is the whole set of emissive objects
 
