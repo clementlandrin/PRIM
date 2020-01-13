@@ -81,6 +81,9 @@ int numberOfCells;
 std::vector<float> particlePositions;
 std::vector<float> squarePositions;
 std::vector<float> squareNormals;
+std::vector<float> spherePositions;
+std::vector<float> sphereNormals;
+std::vector<int> sphereIndices;
 std::vector<float> cellPositions;
 std::vector<float> cellColorAndIntensity;
 std::vector<LightSource> lightSources;
@@ -94,6 +97,11 @@ GLuint m_particleUBO;
 GLuint m_squarePositionVboID;
 GLuint m_squareNormalVBO;
 GLuint m_squareVao;
+
+GLuint m_spherePositionVboID;
+GLuint m_sphereNormalVBO;
+GLuint m_sphereIBO;
+GLuint m_sphereVao;
 
 GLuint m_cellPositionVboID;
 GLuint m_cellColorAndIntensityVboID;
@@ -288,6 +296,34 @@ void initCellVAO()
 	glBindVertexArray(0); TEST_OPENGL_ERROR(); // Desactive the VAO just created. Will be activated at rendering time.
 }
 
+void initSphereVAO()
+{
+	glCreateBuffers(1, &m_spherePositionVboID); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
+	size_t vertexBufferSize = sizeof(float) * spherePositions.size(); // Gather the size of the buffer from the CPU-side vector
+	glNamedBufferStorage(m_spherePositionVboID, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR(); // Create a data store on the GPU
+	glNamedBufferSubData(m_spherePositionVboID, 0, vertexBufferSize, spherePositions.data()); TEST_OPENGL_ERROR(); // Fill the data store from a CPU array
+
+	glCreateBuffers(1, &m_sphereNormalVBO); TEST_OPENGL_ERROR(); // Same for normal
+	glNamedBufferStorage(m_sphereNormalVBO, vertexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
+	glNamedBufferSubData(m_sphereNormalVBO, 0, vertexBufferSize, sphereNormals.data()); TEST_OPENGL_ERROR();
+
+	glCreateBuffers(1, &m_sphereIBO); TEST_OPENGL_ERROR(); // Same for the index buffer, that stores the list of indices of the triangles forming the mesh
+	size_t indexBufferSize = sizeof(float) * sphereIndices.size();
+	glNamedBufferStorage(m_sphereIBO, indexBufferSize, NULL, GL_DYNAMIC_STORAGE_BIT); TEST_OPENGL_ERROR();
+	glNamedBufferSubData(m_sphereIBO, 0, indexBufferSize, sphereIndices.data()); TEST_OPENGL_ERROR();
+
+	glCreateVertexArrays(1, &m_sphereVao); TEST_OPENGL_ERROR(); // Create a single handle that joins together attributes (vertex positions, normals) and connectivity (triangles indices)
+	glBindVertexArray(m_sphereVao); TEST_OPENGL_ERROR();
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_spherePositionVboID); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
+	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_sphereNormalVBO); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_sphereIBO); TEST_OPENGL_ERROR();
+	glBindVertexArray(0); TEST_OPENGL_ERROR();// Desactive the VAO just created. Will be activated at rendering time.
+}
+
 void initSquareVAO()
 {
 	glCreateBuffers(1, &m_squarePositionVboID); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
@@ -332,6 +368,10 @@ void initBuffers()
 	///////////////////////////////////////
 
 	initSquareVAO();
+
+	////////////////////////////////
+
+	initSphereVAO();
 
 	////////////////////////////////
 
@@ -578,9 +618,79 @@ void createSquare()
 	frontFace(5 * vertexPerFace, CUBE_SIZE);
 }
 
+void createSphere(glm::vec3 origin, float radius, int resolution)
+{
+	float x, y, z, xy;                              // vertex position
+	float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
+	float s, t;                                     // vertex texCoord
+
+	float sectorStep = 2 * M_PI / resolution;
+	float stackStep = M_PI / resolution;
+	float sectorAngle, stackAngle;
+
+	for (int i = 0; i <= resolution; ++i)
+	{
+		stackAngle = M_PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
+		xy = radius * cosf(stackAngle);             // r * cos(u)
+		z = radius * sinf(stackAngle);              // r * sin(u)
+
+		// add (sectorCount+1) vertices per stack
+		// the first and last vertices have same position and normal, but different tex coords
+		for (int j = 0; j <= resolution; ++j)
+		{
+			sectorAngle = j * sectorStep;           // starting from 0 to 2pi
+
+			// vertex position (x, y, z)
+			x = xy * cosf(sectorAngle);             // r * cos(u) * cos(v)
+			y = xy * sinf(sectorAngle);             // r * cos(u) * sin(v)
+			spherePositions.push_back(x + origin.x);
+			spherePositions.push_back(y + origin.y);
+			spherePositions.push_back(z + origin.z);
+
+			// normalized vertex normal (nx, ny, nz)
+			nx = x * lengthInv;
+			ny = y * lengthInv;
+			nz = z * lengthInv;
+			sphereNormals.push_back(nx);
+			sphereNormals.push_back(ny);
+			sphereNormals.push_back(nz);
+		}
+	}
+
+	// generate CCW index list of sphere triangles
+	int k1, k2;
+	for (int i = 0; i < resolution; ++i)
+	{
+		k1 = i * (resolution + 1);     // beginning of current stack
+		k2 = k1 + resolution + 1;      // beginning of next stack
+
+		for (int j = 0; j < resolution; ++j, ++k1, ++k2)
+		{
+			// 2 triangles per sector excluding first and last stacks
+			// k1 => k2 => k1+1
+			if (i != 0)
+			{
+				sphereIndices.push_back(k1);
+				sphereIndices.push_back(k2);
+				sphereIndices.push_back(k1 + 1);
+			}
+
+			// k1+1 => k2 => k2+1
+			if (i != (resolution - 1))
+			{
+				sphereIndices.push_back(k1 + 1);
+				sphereIndices.push_back(k2);
+				sphereIndices.push_back(k2 + 1);
+			}
+		}
+	}
+}
+
 void initScene()
 {
 	createSquare();
+
+	createSphere(glm::vec3(-0.5f, 0.0f, -0.5f), 0.1f, 10);
 
 	int power_index = 0;
 	float temp = (float)RESOLUTION;
@@ -815,6 +925,57 @@ void drawParticlesVBO()
 	glUseProgram(0); TEST_OPENGL_ERROR();
 }
 
+void drawSphereVAO()
+{
+	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+
+	if (shouldRenderLighting)
+	{
+		lightSources.resize(cellPositions.size() / 3);
+
+		for (int i = 0; i < cellPositions.size() / 3; i++)
+		{
+			lightSources[i].position = glm::vec4(cellPositions[3 * i], cellPositions[3 * i + 1], cellPositions[3 * i + 2], 1.0);
+			lightSources[i].color_and_intensity = glm::vec4(cellColorAndIntensity[4 * i], cellColorAndIntensity[4 * i + 1], cellColorAndIntensity[4 * i + 2], cellColorAndIntensity[4 * i + 3]);
+		}
+	}
+	else
+	{
+		lightSources.resize(1);
+		lightSources[0].position = glm::vec4(0.0f);
+		lightSources[0].color_and_intensity = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	}
+
+	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
+	int actualNumberOfCells[1] = { lightSources.size() };
+	GLsizei sifeOfArray = lightSources.size() * sizeof(LightSource);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sifeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sifeOfArray, sizeof(int), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
+
+	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock"); TEST_OPENGL_ERROR();
+	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0); TEST_OPENGL_ERROR();
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
+
+	glBindVertexArray(m_sphereVao); TEST_OPENGL_ERROR(); // Activate the VAO storing geometry data
+	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_spherePositionVboID); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, spherePositions.size() * sizeof(float), &(spherePositions[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+
+	glEnableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, m_sphereNormalVBO); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sphereNormals.size() * sizeof(float), &(sphereNormals[0])); TEST_OPENGL_ERROR();
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
+
+	glDrawElements(GL_TRIANGLES, static_cast<GLsizei> (sphereIndices.size()), GL_UNSIGNED_INT, 0); // Call for rendering: stream the current GPU geometry through the current GPU program
+
+	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
+	glDisableVertexAttribArray(1); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
+	glUseProgram(0); TEST_OPENGL_ERROR();
+}
+
 void drawCubeVAO()
 {
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
@@ -833,7 +994,7 @@ void drawCubeVAO()
 	{
 		lightSources.resize(1);
 		lightSources[0].position = glm::vec4(0.0f);
-		lightSources[0].color_and_intensity = glm::vec4(1.0f);
+		lightSources[0].color_and_intensity = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
@@ -903,6 +1064,8 @@ void render()
 
 	drawCubeVAO();
 
+	drawSphereVAO();
+
 	if (shouldRegisterSimulation && shouldRenderLighting)
 	{
 		drawCellVAO();
@@ -917,6 +1080,7 @@ void clear()
 {
 	glDeleteBuffers(1, &m_particleVboID); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squarePositionVboID); TEST_OPENGL_ERROR();
+	glDeleteBuffers(1, &m_spherePositionVboID); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squareNormalVBO); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squareVao); TEST_OPENGL_ERROR();
 
