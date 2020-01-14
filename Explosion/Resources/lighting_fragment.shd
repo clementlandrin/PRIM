@@ -24,7 +24,7 @@ const int MY_ARRAY_SIZE = 73; // either 1, 9, 73 or 585
 layout (std140, binding = 0) uniform lightSourcesBlock {
   LightSource myArray [MY_ARRAY_SIZE]; // This is the important name (in the shader).
   vec4 number_of_lights;
-  vec4 spheres [1];
+  vec4 spheres [2];
   vec4 number_of_spheres;
 };
 
@@ -34,8 +34,9 @@ float computeDiffuseFromLight(vec3 lightPosition)
   return max(-dot(fNormal.xyz, wi), 0.0);
 }
 
-bool intersect(vec3 rayOrigin, vec3 rayDirection, vec3 center, float radius)
+bool intersect(vec3 rayOrigin, vec3 pixelPosition, vec3 center, float radius)
 {
+	vec3 rayDirection = normalize(pixelPosition - rayOrigin);
     vec3 oc = rayOrigin - center;
     float a = dot(rayDirection, rayDirection);
     float b = 2.0 * dot(oc, rayDirection);
@@ -45,7 +46,7 @@ bool intersect(vec3 rayOrigin, vec3 rayDirection, vec3 center, float radius)
         return false;
     }
     else{
-        if (dot(rayDirection, center - rayOrigin) > 0.0)
+        if (dot(rayDirection, center - rayOrigin) > 0.0 && length(pixelPosition - rayOrigin) > length(center - rayOrigin))
 		{
 			return true;
 		}
@@ -60,7 +61,7 @@ void main() {
 	bool didIntersectASphere = false;
 	for (int j = 0; j < number_of_spheres.x; j++)
 	{
-		didIntersectASphere = didIntersectASphere || intersect(myArray[i].position.xyz, fPositionInWorld.xyz - myArray[i].position.xyz, spheres[j].xyz, spheres[j].z);
+		didIntersectASphere = didIntersectASphere || intersect(myArray[i].position.xyz, fPositionInWorld.xyz, spheres[j].xyz, spheres[j].w);
 	}
 	if (!didIntersectASphere)
 	{

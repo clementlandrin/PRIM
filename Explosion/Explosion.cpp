@@ -36,7 +36,7 @@
 #define RESOLUTION 4
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 
-#define NUMBER_OF_SPHERE 1
+#define NUMBER_OF_SPHERE 2
 
 std::ifstream in;
 std::ofstream out;
@@ -805,7 +805,7 @@ void initScene()
 	int sphere_resolution = 100;
 
 	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
-	//spheres.push_back(Sphere(0.2, Vec(0.0, 0.5, 0.5), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::DIFFUSE));
+	spheres.push_back(new Sphere(0.2, Vec(0.0, 0.5, 0.5), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::DIFFUSE));
 
 	spherePositions.resize(spheres.size());
 	sphereNormals.resize(spheres.size());
@@ -929,7 +929,7 @@ void update(float currentTime, bool realTimeSimulation)
 {
 	frameNumber += 1;
 
-	glm::vec3 sphereNewPosition = glm::vec3(0.5f * cos(currentTime/100000.0f), 0.0f, 0.5f * sin(currentTime/100000.0f));
+	glm::vec3 sphereNewPosition = glm::vec3(0.5f * cos(currentTime/10000.0f), 0.0f, 0.5f * sin(currentTime/10000.0f));
 	translateSphere(sphereNewPosition - glm::vec3(spheres[0]->p.x, spheres[0]->p.y, spheres[0]->p.z), 0);
 	spheres[0]->p = Vec(sphereNewPosition.x, sphereNewPosition.y, sphereNewPosition.z);
 
