@@ -116,7 +116,13 @@ const glm::vec3 Cell::GetGradient()
 
 const glm::vec3 Cell::ComputeCenter()
 {
-	return glm::vec3(m_Position[0] + m_CellWidth / 2.0, m_Position[1] + m_CellHeight / 2.0, m_Position[2] + m_CellDepth / 2.0);
+	//return glm::vec3(m_Position[0] + m_CellWidth / 2.0, m_Position[1] + m_CellHeight / 2.0, m_Position[2] + m_CellDepth / 2.0);
+	glm::vec3 center = glm::vec3(0.0f);
+	for (int i = 0; i < m_Particles.size(); i++)
+	{
+		center += m_Particles[i]->GetPosition();
+	}
+	return center / (float) m_Particles.size();
 }
 
 void Cell::SetParticles(std::vector<Particle*> particles)

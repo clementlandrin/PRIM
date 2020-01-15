@@ -320,6 +320,29 @@ void initParticleVbo()
 	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
+glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
+{
+	float proportion = numberOfParticlesInCell / (PARTICLE_NUMBER / pow(8, depth));
+	glm::vec3 color = glm::vec3(1.0f);
+	if (proportion > 3.0f / 4.0f)
+	{
+		//color.b = (proportion - 3.0f / 4.0f) * 4.0f / 3.0f;
+	}
+	else if (proportion > 2.0f / 4.0f)
+	{
+		color.r = (proportion - 2.0f / 4.0f) * 4.0f / 2.0f;
+	}
+	else if (proportion > 1.0f / 4.0f)
+	{
+		color.g = (proportion - 1.0f / 4.0f) * 4.0f / 1.0f;
+	}
+	else
+	{
+		color.b = (proportion - 1.0f / 4.0f) * 4.0f / 1.0f;
+	}
+	return color;
+}
+
 void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
 {
 	if (shouldAddCellToVector)
@@ -329,21 +352,12 @@ void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddCellToVec
 		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter()[2]);
 	}
 
-	int indexOfCell = cellPositions.size();
-	int indexToPowerOfTwo = 1;
-	int powerOfTwo = 0;
-	while(indexOfCell > indexToPowerOfTwo)
-	{
-		powerOfTwo += 1;
-		indexToPowerOfTwo = indexToPowerOfTwo + pow(8, powerOfTwo);
-	}
-	int depth = powerOfTwo + 1;
-
 	float numberOfParticlesInCell = octreeNode->GetCell()->GetParticles().size();
-	cellColorAndIntensity.push_back(1.0f);
-	cellColorAndIntensity.push_back(1.0f);
-	cellColorAndIntensity.push_back(1.0f);
-	cellColorAndIntensity.push_back(numberOfParticlesInCell / depth / PARTICLE_NUMBER);
+	glm::vec3 color = computeFireColor(octreeNode->GetDepth(), numberOfParticlesInCell);
+	cellColorAndIntensity.push_back(color.x);
+	cellColorAndIntensity.push_back(color.y);
+	cellColorAndIntensity.push_back(color.z);
+	cellColorAndIntensity.push_back(numberOfParticlesInCell / cellPositions.size() * 3.0f / PARTICLE_NUMBER);
 }
 
 void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
@@ -805,7 +819,7 @@ void initScene()
 	int sphere_resolution = 100;
 
 	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
-	spheres.push_back(new Sphere(0.2, Vec(0.0, 0.5, 0.5), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::DIFFUSE));
+	spheres.push_back(new Sphere(0.2, Vec(0.0, 0.5, 0.5), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::EMMISSIVE));
 
 	spherePositions.resize(spheres.size());
 	sphereNormals.resize(spheres.size());
@@ -962,6 +976,20 @@ void update(float currentTime, bool realTimeSimulation)
 					//std::cout << "Cannot read file" << std::endl;
 				}
 			}
+		}
+
+		regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
+
+		octreeRoot->SetCell(regularGrids[0]->GetCells()[0][0][0]);
+		octreeRoot->UpdateParticlesInChildrenCells();
+
+		cellColorAndIntensity.clear();
+		cellPositions.clear();
+		UpdateCellVectors(octreeRoot, true);
+
+		for (int i = 0; i < regularGrids.size(); i++)
+		{
+			regularGrids[i]->ResizeGrid(currentSizeOfGrid);
 		}
 	}
 	else
@@ -1359,7 +1387,7 @@ Vec radiance(const Ray &r, int depth)
 void computeRayTracedImage()
 {
 	int w = 1024, h = 768, samps = 1; // # samples
-	Ray cam(Vec(50, 52, 295.6), Vec(0, -0.042612, -1).normalize());   // camera center and direction
+	Ray cam(Vec(0.0, 0.0, -3.0), Vec(0, 0, 1).normalize());   // camera center and direction
 	Vec cx = Vec(w * .5135 / h), cy = (cx.cross(cam.d)).normalize() * .5135, *pixelsColor = new Vec[w * h];
 
 	// setup scene:
@@ -1371,7 +1399,7 @@ void computeRayTracedImage()
 	spheres.push_back(Sphere(16.5, Vec(27, 16.5, 47), Vec(0, 0, 0), Vec(1, 1, 1) * .999, MIRROR));         //Mirr
 	spheres.push_back(Sphere(16.5, Vec(73, 16.5, 78), Vec(0, 0, 0), Vec(1, 1, 1) * .999, GLASS));         //Change to Glass
 	spheres.push_back(Sphere(5, Vec(50, 70, 50), Vec(1, 1, 1), Vec(0, 0, 0), EMMISSIVE));     */             //Light
-	lights.push_back(8);
+	lights.push_back(1);
 
 	// ray trace:
 	for (int y = 0; y < h; y++)

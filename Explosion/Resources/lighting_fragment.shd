@@ -68,6 +68,11 @@ void main() {
 		vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
 		contributionFromLightI *= myArray[i].color_and_intensity.w;
 		totalColor += contributionFromLightI;
+		//totalColor += vec3(100000.0f);
+	}
+	else
+	{
+		//totalColor -= vec3(-1.0f);
 	}
   }
 
