@@ -24,7 +24,7 @@ public:
   void ClearParticles();
   void AddParticle(glm::vec3 position, float energy);
 
-  void UpdateParticlePositions(float dt, float cubeSize);
+  void UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBounds = false);
   glm::vec3 SpeedVariationByNavierStokes(Particle* particle);
 
   static bool PositionIsInCube(glm::vec3 position, float cubeSize);

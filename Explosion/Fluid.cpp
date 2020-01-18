@@ -69,26 +69,39 @@ void Fluid::ClearParticles()
 	m_Particles.clear();
 }
 
-void Fluid::UpdateParticlePositions(float dt, float cubeSize)
+void Fluid::UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBounds)
 {
   for (int i = 0; i < m_Particles.size(); i++)
   {
 	m_Particles[i]->SetSpeed(m_Particles[i]->GetSpeed() + dt * SpeedVariationByNavierStokes(m_Particles[i]));
-	glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed(); //glm::vec3(rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)), rand() / (static_cast <float> (RAND_MAX)));
+	glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed();
+
 	if (PositionIsInCube(newPosition, cubeSize))
 	{
 	  m_Particles[i]->SetPosition(newPosition);
 	}
-	else
+	else if (!bounceOnBounds)
 	{
 	  delete m_Particles[i];
 	  m_Particles.erase(m_Particles.begin() + i);
 	}
+	else
+	{
+		for (int j = 0; j < 3; j++)
+		{
+			if (abs(newPosition[j]) > cubeSize)
+			{
+				newPosition[j] = m_Particles[i]->GetPosition()[j] - 1.0f * dt * m_Particles[i]->GetSpeed()[j];
+			}
+		}
+		m_Particles[i]->SetPosition(newPosition);
+	}
   }
 }
+
 glm::vec3 Fluid::SpeedVariationByNavierStokes(Particle* particle)
 {
-	return (m_Viscosity * particle->GetLaplacian() - particle->GetVGradV())/m_Viscosity;
+	return (m_Viscosity * particle->GetLaplacian() - particle->GetVGradV() + 0.3f * glm::vec3(0.0f, -9.81f, 0.0f))/m_Viscosity;
 }
 
 const float Fluid::GetViscosity() { return m_Viscosity; }

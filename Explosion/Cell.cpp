@@ -114,9 +114,12 @@ const glm::vec3 Cell::GetGradient()
 	return m_Gradient;
 }
 
-const glm::vec3 Cell::ComputeCenter()
+const glm::vec3 Cell::ComputeCenter(bool shouldMoveCenterToParticleBarycenter)
 {
-	//return glm::vec3(m_Position[0] + m_CellWidth / 2.0, m_Position[1] + m_CellHeight / 2.0, m_Position[2] + m_CellDepth / 2.0);
+	if (m_Particles.size() == 0 || !shouldMoveCenterToParticleBarycenter)
+	{
+		return glm::vec3(m_Position[0] + m_CellWidth / 2.0, m_Position[1] + m_CellHeight / 2.0, m_Position[2] + m_CellDepth / 2.0);
+	}
 	glm::vec3 center = glm::vec3(0.0f);
 	for (int i = 0; i < m_Particles.size(); i++)
 	{

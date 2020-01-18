@@ -21,7 +21,7 @@ public:
 	void EraseParticleAtIndex(int index);
 	void ComputeEnergy();
 	glm::vec3 UpdateSpeed();
-	const glm::vec3 ComputeCenter();
+	const glm::vec3 ComputeCenter(bool shouldMoveCenterToParticleBarycenter);
 	void ComputeGradientAndVGradV();
 	void ComputeLaplacian();
 	void PushNavierStokesParameters();
