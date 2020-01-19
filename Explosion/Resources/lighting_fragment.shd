@@ -6,6 +6,7 @@ struct LightSource
 {
 	vec4 position;
 	vec4 color_and_intensity;
+	vec4 depth;
 };
 
 uniform mat4 model_view_matrix;
@@ -73,7 +74,7 @@ float blendFunction(float distance, int depth)
 		}
 	}
 
-	if (distance < blendingRadius[0].x)
+	/*if (distance < 0.3)
 	{
 		return factor * 1.0;
 	}
@@ -81,7 +82,7 @@ float blendFunction(float distance, int depth)
 	{
 		return factor * clamp((distance - blendingRadius[0].x)/(blendingRadius[1].x - blendingRadius[0].x), 0.0, 1.0);
 	}*/
-	/*if (depth == 0 && distance < blendingRadius[0].x)
+	if (depth == 0 && distance < blendingRadius[0].x)
 	{
 		return factor * 1.0;
 	}
@@ -97,7 +98,7 @@ float blendFunction(float distance, int depth)
 	else
 	{
 		return factor * clamp((blendingRadius[depth+1].x - distance)/(blendingRadius[depth+1].x - blendingRadius[depth].x), 0.0, 1.0);
-	}*/
+	}
 }
 
 void main() {
@@ -121,8 +122,8 @@ void main() {
 	{
 		vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
 		contributionFromLightI *= myArray[i].color_and_intensity.w;
-		contributionFromLightI *= blendFunction(length(fPositionInWorld.xyz-myArray[i].position.xyz), depth);
-		contributionFromLightI *= 500.0;
+		contributionFromLightI *= blendFunction(length(fPositionInWorld.xyz-myArray[i].position.xyz), int(myArray[i].depth.x));
+		//contributionFromLightI *= 4.0;
 		totalColor += contributionFromLightI;
 	}
   }

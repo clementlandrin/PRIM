@@ -14,6 +14,7 @@
 #include <vector>
 #include <algorithm>
 
+#define SIMULATION_FILE_NAME "simulation_2.txt"
 
 #include "Particle.hpp"
 #include "Fluid.hpp"
@@ -30,7 +31,7 @@
 
 #define VISCOSITY 10000.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 5000
+#define PARTICLE_NUMBER 15000
 #define FLUID_PROPORTION_IN_CUBE 0.1f
 #define CUBE_SIZE 0.75f
 #define RESOLUTION 8
@@ -39,6 +40,9 @@
 #define NUMBER_OF_SPHERE 3
 
 int depthToDisplay = -1;
+
+bool drawCellCenter = false;
+bool drawParticles = true;
 
 std::ifstream in;
 std::ofstream out;
@@ -158,6 +162,7 @@ struct LightSource
 {
 	glm::vec4 position;
 	glm::vec4 color_and_intensity;
+	glm::vec4 depth;
 };
 
 glm::mat4 model_view_matrix = glm::mat4(
@@ -185,6 +190,7 @@ std::vector<std::vector<int>> sphereIndices;
 
 std::vector<float> cellPositions;
 std::vector<float> cellColorAndIntensity;
+std::vector<int> cellDepth;
 
 std::vector<Sphere*> spheres;
 std::vector<LightSource> lightSources;
@@ -289,7 +295,7 @@ void keyboardCallback(unsigned char key, int x, int y)
 			break;
 		}
 	case '0':
-		std::cout << "Pressed key up " << std::endl;
+		std::cout << "Pressed key up : ";
 
 		if (depthToDisplay + 1 <= actual_power_of_two_resolution)
 		{
@@ -299,9 +305,13 @@ void keyboardCallback(unsigned char key, int x, int y)
 			ShaderProgram::set("depth_to_display", depthToDisplay, lightingProgramID); TEST_OPENGL_ERROR();
 			glUseProgram(0); TEST_OPENGL_ERROR();
 		}
+		else
+		{
+			std::cout << "Nothing happens" << std::endl;
+		}
 		break;
 	case '1':
-		std::cout << "Pressed key down " << std::endl;
+		std::cout << "Pressed key down : ";
 
 		if (depthToDisplay - 1 >= -1)
 		{
@@ -310,6 +320,36 @@ void keyboardCallback(unsigned char key, int x, int y)
 			glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 			ShaderProgram::set("depth_to_display", depthToDisplay, lightingProgramID); TEST_OPENGL_ERROR();
 			glUseProgram(0); TEST_OPENGL_ERROR();
+		}
+		else
+		{
+			std::cout << "Nothing happens" << std::endl;
+		}
+		break;
+	case 'c':
+		std::cout << "Pressed key c : ";
+
+		drawCellCenter = !drawCellCenter;
+		if (drawCellCenter)
+		{
+			std::cout << "Draw cell center" << std::endl;
+		}
+		else
+		{
+			std::cout << "Won't draw cell center" << std::endl;
+		}
+		break;
+	case 'p':
+		std::cout << "Pressed key p : ";
+
+		drawParticles = !drawParticles;
+		if (drawParticles)
+		{
+			std::cout << "Draw particles" << std::endl;
+		}
+		else
+		{
+			std::cout << "Won't draw particles" << std::endl;
 		}
 		break;
 	}
@@ -373,16 +413,16 @@ glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
 	{
 		color = glm::vec3(0.0f);
 	}
-	return color;
+	return glm::vec3(1.0f);
 }
 
 void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
 {
 	if (shouldAddCellToVector)
 	{
-		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(false)[0]);
-		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(false)[1]);
-		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(false)[2]);
+		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[0]);
+		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[1]);
+		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[2]);
 	}
 
 	float numberOfParticlesInCell = octreeNode->GetCell()->GetParticles().size();
@@ -390,11 +430,9 @@ void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddCellToVec
 	cellColorAndIntensity.push_back(color.x);
 	cellColorAndIntensity.push_back(color.y);
 	cellColorAndIntensity.push_back(color.z);
-	cellColorAndIntensity.push_back(glm::max((float)(numberOfParticlesInCell / PARTICLE_NUMBER / (actual_power_of_two_resolution + 1)), 0.0f));
-	if (octreeNode->GetDepth() == 2)
-	{
-		cellIntensity += glm::max((float)(numberOfParticlesInCell / PARTICLE_NUMBER / (actual_power_of_two_resolution + 1)), 0.0f);
-	}
+	cellColorAndIntensity.push_back(glm::max((float)((float)numberOfParticlesInCell / (float)PARTICLE_NUMBER), 0.0f));
+
+	cellDepth.push_back(octreeNode->GetDepth());
 }
 
 void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
@@ -503,7 +541,7 @@ void initParticleUBO()
 {
 	glGenBuffers(1, &m_particleUBO); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + 3 * sizeof(glm::vec4) + sizeof(glm::vec4) * spheres.size() + sizeof(glm::vec4) * blendingRadius.size(), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + 3 * sizeof(glm::vec4) + sizeof(glm::vec4) * NUMBER_OF_SPHERE + sizeof(glm::vec4) * blendingRadius.size(), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
@@ -521,7 +559,7 @@ void initBuffers()
 
 	////////////////////////////////
 
-	for (int i = 0; i < spheres.size(); i++)
+	for (int i = 0; i < NUMBER_OF_SPHERE; i++)
 	{
 		initSphereVAO(i);
 	}
@@ -855,15 +893,15 @@ void initScene()
 
 	int sphere_resolution = 100;
 
-	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
-	spheres.push_back(new Sphere(0.2, Vec(0.3, 0.3, 0.3), Vec(1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
-	spheres.push_back(new Sphere(0.2, Vec(-0.1, -0.4, 0.0), Vec(1.0), Vec(0.0, 1.0, 1.0), Refl_t::EMMISSIVE));
+	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0, 1.0, 1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
+	spheres.push_back(new Sphere(0.2, Vec(0.3, 0.3, 0.3), Vec(1.0, 1.0, 1.0), Vec(0.0, 1.0, 0.0), Refl_t::DIFFUSE));
+	spheres.push_back(new Sphere(0.2, Vec(-0.1, -0.4, 0.0), Vec(1.0, 1.0, 1.0), Vec(1.0, 1.0, 1.0), Refl_t::EMMISSIVE));
 
-	spherePositions.resize(spheres.size());
-	sphereNormals.resize(spheres.size());
-	sphereIndices.resize(spheres.size());
+	spherePositions.resize(NUMBER_OF_SPHERE);
+	sphereNormals.resize(NUMBER_OF_SPHERE);
+	sphereIndices.resize(NUMBER_OF_SPHERE);
 
-	for (int i = 0; i < spheres.size(); i++)
+	for (int i = 0; i < NUMBER_OF_SPHERE; i++)
 	{
 		createSphere(glm::vec3(spheres[i]->p.x, spheres[i]->p.y, spheres[i]->p.z), spheres[i]->radius, sphere_resolution, i);
 	}
@@ -884,17 +922,17 @@ void initScene()
 	}
 	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
 
-	blendingRadius.resize(actual_power_of_two_resolution+1);
+	blendingRadius.resize(4); //blendingRadius.resize(actual_power_of_two_resolution+1);
 
 	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
 	{
 		blendingRadius[i] = glm::vec4((float)(i+1)/(float)(actual_power_of_two_resolution+2), 0.0f, 0.0f, 0.0f);
 		std::cout << "Blending radius " << i << " : " << blendingRadius[i].x << std::endl;
 	}
-	blendingRadius[0] = glm::vec4(0.5f, 0.0f, 0.0f, 0.0f);
-	blendingRadius[1] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
-	blendingRadius[2] = glm::vec4(1.5f, 0.0f, 0.0f, 0.0f);
-	blendingRadius[3] = glm::vec4(2.0f, 0.0f, 0.0f, 0.0f);
+	//blendingRadius[0] = glm::vec4(0.2f, 0.0f, 0.0f, 0.0f);
+	blendingRadius[1] = glm::vec4(0.5f, 0.0f, 0.0f, 0.0f);
+	blendingRadius[2] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
+	blendingRadius[3] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 }
 
 void initShaders()
@@ -971,7 +1009,7 @@ bool readFrameInFile(std::ifstream &in)
 	if (numberOfParticles == -1)
 	{
 		in.close();
-		in.open("simulation.txt", std::ios_base::binary);
+		in.open(SIMULATION_FILE_NAME, std::ios_base::binary);
 		return readFrameInFile(in);
 	}
 	else if (numberOfParticles <= 0)
@@ -1039,6 +1077,7 @@ void update(float currentTime, bool realTimeSimulation)
 		octreeRoot->UpdateParticlesInChildrenCells();
 
 		cellColorAndIntensity.clear();
+		cellDepth.clear();
 		cellPositions.clear();
 		UpdateCellVectors(octreeRoot, true);
 
@@ -1064,7 +1103,7 @@ void update(float currentTime, bool realTimeSimulation)
 		{
 			if (!out.is_open())
 			{
-				out = std::ofstream("simulation.txt", std::ios::out | std::ios::binary);
+				out = std::ofstream(SIMULATION_FILE_NAME, std::ios::out | std::ios::binary);
 			}
 			if (out.good())
 			{
@@ -1095,7 +1134,7 @@ void update(float currentTime, bool realTimeSimulation)
 			// Register only the first simulation for now.
 			shouldRegisterSimulation = false;
 			shouldPlayRegisteredSimulation = true;
-			in = std::ifstream("simulation.txt", std::ios_base::binary);
+			in = std::ifstream(SIMULATION_FILE_NAME, std::ios_base::binary);
 			frameNumber = 0;
 		}
 	}
@@ -1110,6 +1149,7 @@ void update(float currentTime, bool realTimeSimulation)
 		octreeRoot->UpdateParticlesInChildrenCells();
 
 		cellColorAndIntensity.clear();
+		cellDepth.clear();
 		cellPositions.clear();
 		UpdateCellVectors(octreeRoot, true);
 
@@ -1127,7 +1167,6 @@ void drawParticlesVBO()
 
 	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_ARRAY_BUFFER, m_particleVboID); TEST_OPENGL_ERROR();
-
 	glBufferSubData(GL_ARRAY_BUFFER, 0, particlePositions.size() * sizeof(float), &(particlePositions[0])); TEST_OPENGL_ERROR();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
 	glDrawArrays(GL_POINTS, 0, particlePositions.size() / 3); TEST_OPENGL_ERROR();
@@ -1147,6 +1186,7 @@ void updateUBO()
 		{
 			lightSources[i].position = glm::vec4(cellPositions[3 * i], cellPositions[3 * i + 1], cellPositions[3 * i + 2], 1.0);
 			lightSources[i].color_and_intensity = glm::vec4(cellColorAndIntensity[4 * i], cellColorAndIntensity[4 * i + 1], cellColorAndIntensity[4 * i + 2], cellColorAndIntensity[4 * i + 3]);
+			lightSources[i].depth = glm::vec4((float)cellDepth[i], 0.0f, 0.0f, 0.0f);
 		}
 	}
 	else
@@ -1154,6 +1194,7 @@ void updateUBO()
 		lightSources.resize(1);
 		lightSources[0].position = glm::vec4(0.0f);
 		lightSources[0].color_and_intensity = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		lightSources[0].depth = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 	}
 
 	std::vector<glm::vec4> spherePositionAndRadius;
@@ -1162,7 +1203,7 @@ void updateUBO()
 		spherePositionAndRadius.push_back(glm::vec4(spheres[i]->p.x, spheres[i]->p.y, spheres[i]->p.z, spheres[i]->radius));
 	}
 	GLsizei sizeOfSphereArray = spherePositionAndRadius.size() * sizeof(glm::vec4);
-	glm::vec4 actualNumberOfSpheres[1] = { glm::vec4(spheres.size(), 0.0f, 0.0f, 0.0f) };
+	glm::vec4 actualNumberOfSpheres[1] = { glm::vec4(NUMBER_OF_SPHERE, 0.0f, 0.0f, 0.0f) };
 	glm::vec4 numberOfRadius[1] = { glm::vec4(blendingRadius.size(), 0.0f, 0.0f, 0.0f) };
 
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
@@ -1269,17 +1310,20 @@ void render()
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); TEST_OPENGL_ERROR();
 
-	drawParticlesVBO();
+	if (drawParticles)
+	{
+		drawParticlesVBO();
+	}
 
 	drawCubeVAO();
 
-	for (int i = 0; i < spheres.size(); i++)
+	for (int i = 0; i < NUMBER_OF_SPHERE; i++)
 	{
 		drawSphereVAO(i);
 	}
 
 
-	if (shouldRenderLighting)
+	if (shouldRenderLighting && drawCellCenter)
 	{
 		drawCellVAO();
 	}
@@ -1446,17 +1490,18 @@ Vec radiance(const Ray &r, int depth)
 
 void computeRayTracedImage()
 {
-	int w = 1024, h = 768, samps = 1; // # samples
-	Ray cam(Vec(0.0, 0.0, -3.0), Vec(0, 0, 1).normalize());   // camera center and direction
-	Vec cx = Vec(w * .5135 / h), cy = (cx.cross(cam.d)).normalize() * .5135, *pixelsColor = new Vec[w * h];
+	int w = 1024, h = 768, samps = 10; // # samples
+	Ray cam(Vec(-0.12, -0.0, 4.0), Vec(0, 0, -1).normalize());   // camera center and direction
+	Vec cx = Vec(w * .5 / h), cy = (cx.cross(cam.d)).normalize() * .5, *pixelsColor = new Vec[w * h];
 
 	// setup scene:
-	/*spheres.push_back(Sphere(1e5, Vec(1e5 + 1, 40.8, 81.6), Vec(0, 0, 0), Vec(.75, .25, .25), DIFFUSE));   //Left
-	spheres.push_back(Sphere(1e5, Vec(-1e5 + 99, 40.8, 81.6), Vec(0, 0, 0), Vec(.25, .25, .75), DIFFUSE)); //Rght
-	spheres.push_back(Sphere(1e5, Vec(50, 40.8, 1e5), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Back
-	spheres.push_back(Sphere(1e5, Vec(50, 40.8, -1e5 + 170), Vec(0, 0, 0), Vec(0, 0, 0), DIFFUSE));        //Front
-	spheres.push_back(Sphere(1e5, Vec(50, 1e5, 81.6), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Bottom
-	spheres.push_back(Sphere(16.5, Vec(27, 16.5, 47), Vec(0, 0, 0), Vec(1, 1, 1) * .999, MIRROR));         //Mirr
+	spheres.push_back(new Sphere(1e5, Vec(-1e5 + CUBE_SIZE, 0.0, 0.0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));   //Left
+	spheres.push_back(new Sphere(1e5, Vec(1e5 - CUBE_SIZE, 0.0, 0.0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE)); //Rght
+	spheres.push_back(new Sphere(1e5, Vec(0, 0, 1e5 - CUBE_SIZE), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Back
+	//spheres.push_back(new Sphere(1e5, Vec(0, 0, -1e5 + CUBE_SIZE), Vec(0, 0, 0), Vec(0, 0, 0), DIFFUSE));        //Front
+	spheres.push_back(new Sphere(1e5, Vec(0, 1e5 - CUBE_SIZE, 0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Bottom
+	spheres.push_back(new Sphere(1e5, Vec(0, -1e5 + CUBE_SIZE, 0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Top
+	/*spheres.push_back(Sphere(16.5, Vec(27, 16.5, 47), Vec(0, 0, 0), Vec(1, 1, 1) * .999, MIRROR));         //Mirr
 	spheres.push_back(Sphere(16.5, Vec(73, 16.5, 78), Vec(0, 0, 0), Vec(1, 1, 1) * .999, GLASS));         //Change to Glass
 	spheres.push_back(Sphere(5, Vec(50, 70, 50), Vec(1, 1, 1), Vec(0, 0, 0), EMMISSIVE));     */             //Light
 	lights.push_back(1);
@@ -1474,7 +1519,7 @@ void computeRayTracedImage()
 				double dy = ((double)(rand()) / RAND_MAX);
 				Vec d = cx * ((x + dx) / w - .5) +
 					cy * ((y + dy) / h - .5) + cam.d;
-				r = r + radiance(Ray(cam.o + d * 140, d.normalize()), 0) * (1. / samps);
+				r = r + radiance(Ray(cam.o + d, d.normalize()), 0) * (1. / samps);
 			}
 
 			pixelsColor[x + (h - 1 - y) * w] = pixelsColor[x + (h - 1 - y) * w] + Vec(clamp(r.x), clamp(r.y), clamp(r.z));
@@ -1502,11 +1547,11 @@ int main(int argc, char **argv) {
 
 	if (shouldRegisterSimulation)
 	{
-		std::ofstream ofs("simulation.txt", std::ios::out | std::ios::trunc); // clear contents
+		std::ofstream ofs(SIMULATION_FILE_NAME, std::ios::out | std::ios::trunc); // clear contents
 		ofs.close();
 	}
 
-	in = std::ifstream("simulation.txt", std::ios_base::binary);
+	in = std::ifstream(SIMULATION_FILE_NAME, std::ios_base::binary);
 
 	initialTime = glutGet(GLUT_ELAPSED_TIME);
 	zeroTimeOfSimulation = initialTime;
