@@ -21,7 +21,7 @@ in vec4 fNormal;
 in vec4 fPositionInWorld;
 
 // Arrays in a UBO must use a constant expression for their size.
-const int MY_ARRAY_SIZE = 585; // either 1, 9, 73 or 585
+const int MY_ARRAY_SIZE = 73; // either 1, 9, 73 or 585
 
 // The name of the block is used for finding the index location only
 layout (std140, binding = 0) uniform lightSourcesBlock {
@@ -74,19 +74,11 @@ float blendFunction(float distance, int depth)
 		}
 	}
 
-	/*if (distance < 0.3)
+	if (depth == 0 && distance <= blendingRadius[0].x)
 	{
 		return factor * 1.0;
 	}
-	/*else if (distance > blendingRadius[0].x)
-	{
-		return factor * clamp((distance - blendingRadius[0].x)/(blendingRadius[1].x - blendingRadius[0].x), 0.0, 1.0);
-	}*/
-	if (depth == 0 && distance < blendingRadius[0].x)
-	{
-		return factor * 1.0;
-	}
-	else if (depth == int(number_of_radius.x) - 1 && distance > blendingRadius[depth].x)
+	else if (depth == int(number_of_radius.x) - 1 && distance >= blendingRadius[depth].x)
 	{
 		return factor * 1.0;
 	}

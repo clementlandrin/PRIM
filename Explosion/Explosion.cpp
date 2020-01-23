@@ -29,12 +29,14 @@
 
 #define M_PI 3.14159
 
+#define REAL_TIME_LIGHT_MAXIMUM_NUMBER 585
+
 #define VISCOSITY 10000.0f
 #define DENSITY 1.0f
 #define PARTICLE_NUMBER 15000
 #define FLUID_PROPORTION_IN_CUBE 0.1f
 #define CUBE_SIZE 0.75f
-#define RESOLUTION 8
+#define RESOLUTION 4
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 
 #define NUMBER_OF_SPHERE 3
@@ -62,9 +64,11 @@ glm::vec2 lastRotatingCursorPosition;
 static float initialTime;
 static float zeroTimeOfSimulation;
 
-int actual_power_of_two_resolution;
+int clamped_power_of_two_resolution;
+int power_of_two_resolution;
 
 void computeRayTracedImage();
+float blendFunction(float distance, int depth);
 
 struct Vec
 {
@@ -80,6 +84,7 @@ struct Vec
 	Vec operator*(double b) const { return Vec(x * b, y * b, z * b); }
 	Vec mult(const Vec &b) const { return Vec(x * b.x, y * b.y, z * b.z); }
 	Vec &normalize() { return *this = *this * (1 / sqrt(x * x + y * y + z * z)); }
+	float norm() { return sqrt(x * x + y * y + z * z); }
 	double dot(const Vec &b) const { return x * b.x + y * b.y + z * b.z; }
 	Vec cross(Vec &b) { return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x); }
 };
@@ -128,7 +133,8 @@ struct Sphere
 	double radius; // radius
 	Vec p, e, c;   // position, emission, color
 	Refl_t refl;   // reflection type (DIFFuse, SPECular, REFRactive)
-	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_) : radius(rad_), p(p_), e(e_), c(c_), refl(refl_) {}
+	int depth;
+	Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_, int depth_) : radius(rad_), p(p_), e(e_), c(c_), refl(refl_), depth(depth_) {}
 
 	double intersect(const Ray &r) const
 	{ // returns distance, 0 if nohit
@@ -191,6 +197,10 @@ std::vector<std::vector<int>> sphereIndices;
 std::vector<float> cellPositions;
 std::vector<float> cellColorAndIntensity;
 std::vector<int> cellDepth;
+
+std::vector<float> cellPositionsForRayTracer;
+std::vector<float> cellColorAndIntensityForRayTracer;
+std::vector<float> cellDepthForRayTracer;
 
 std::vector<Sphere*> spheres;
 std::vector<LightSource> lightSources;
@@ -297,7 +307,7 @@ void keyboardCallback(unsigned char key, int x, int y)
 	case '0':
 		std::cout << "Pressed key up : ";
 
-		if (depthToDisplay + 1 <= actual_power_of_two_resolution)
+		if (depthToDisplay + 1 <= clamped_power_of_two_resolution)
 		{
 			depthToDisplay += 1;
 			std::cout << "Updating depth to display to " << depthToDisplay << std::endl;
@@ -416,49 +426,73 @@ glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
 	return glm::vec3(1.0f);
 }
 
-void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
+void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddToRayTracer, bool shouldAddCellToVector = false)
 {
-	if (shouldAddCellToVector)
-	{
-		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[0]);
-		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[1]);
-		cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[2]);
-	}
-
 	float numberOfParticlesInCell = octreeNode->GetCell()->GetParticles().size();
 	glm::vec3 color = computeFireColor(octreeNode->GetDepth(), numberOfParticlesInCell);
-	cellColorAndIntensity.push_back(color.x);
-	cellColorAndIntensity.push_back(color.y);
-	cellColorAndIntensity.push_back(color.z);
-	cellColorAndIntensity.push_back(glm::max((float)((float)numberOfParticlesInCell / (float)PARTICLE_NUMBER), 0.0f));
 
-	cellDepth.push_back(octreeNode->GetDepth());
+	if (shouldAddCellToVector)
+	{
+		if (octreeNode->GetDepth() <= clamped_power_of_two_resolution)
+		{
+			cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[0]);
+			cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[1]);
+			cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[2]);
+		}
+	}
+
+	if (octreeNode->GetDepth() <= clamped_power_of_two_resolution)
+	{
+		cellColorAndIntensity.push_back(color.x);
+		cellColorAndIntensity.push_back(color.y);
+		cellColorAndIntensity.push_back(color.z);
+		cellColorAndIntensity.push_back(glm::max((float)((float)numberOfParticlesInCell / (float)PARTICLE_NUMBER), 0.0f));
+
+		cellDepth.push_back(octreeNode->GetDepth());
+	}
+
+	if (shouldAddToRayTracer)
+	{
+		cellPositionsForRayTracer.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[0]);
+		cellPositionsForRayTracer.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[1]);
+		cellPositionsForRayTracer.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[2]);
+
+		cellColorAndIntensityForRayTracer.push_back(color.x);
+		cellColorAndIntensityForRayTracer.push_back(color.y);
+		cellColorAndIntensityForRayTracer.push_back(color.z);
+		cellColorAndIntensityForRayTracer.push_back(glm::max((float)((float)numberOfParticlesInCell / (float)PARTICLE_NUMBER), 0.0f));
+
+		cellDepthForRayTracer.push_back(octreeNode->GetDepth());
+	}
 }
 
-void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddCellToVector = false)
+void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddToRayTracer, bool shouldAddCellToVector = false)
 {	
-	addCellToCellPositionVector(octreeNode, shouldAddCellToVector);
+	addCellToCellPositionVector(octreeNode, shouldAddToRayTracer, shouldAddCellToVector);
 
-	if (!octreeNode->GetIsALeaf())
+	if (octreeNode->GetDepth() < clamped_power_of_two_resolution || shouldAddToRayTracer)
 	{
-		std::vector<std::vector<std::vector<OctreeNode*>>> children = octreeNode->GetChildren();
-		UpdateCellVectors(children[0][0][0], shouldAddCellToVector);
-		UpdateCellVectors(children[0][0][1], shouldAddCellToVector);
-		UpdateCellVectors(children[0][1][0], shouldAddCellToVector);
-		UpdateCellVectors(children[0][1][1], shouldAddCellToVector);
-		UpdateCellVectors(children[1][0][0], shouldAddCellToVector);
-		UpdateCellVectors(children[1][0][1], shouldAddCellToVector);
-		UpdateCellVectors(children[1][1][0], shouldAddCellToVector);
-		UpdateCellVectors(children[1][1][1], shouldAddCellToVector);
+		if (!octreeNode->GetIsALeaf())
+		{
+			std::vector<std::vector<std::vector<OctreeNode*>>> children = octreeNode->GetChildren();
+			UpdateCellVectors(children[0][0][0], shouldAddToRayTracer, shouldAddCellToVector);
+			UpdateCellVectors(children[0][0][1], shouldAddToRayTracer, shouldAddCellToVector);
+			UpdateCellVectors(children[0][1][0], shouldAddToRayTracer, shouldAddCellToVector);
+			UpdateCellVectors(children[0][1][1], shouldAddToRayTracer, shouldAddCellToVector);
+			UpdateCellVectors(children[1][0][0], shouldAddToRayTracer, shouldAddCellToVector);
+			UpdateCellVectors(children[1][0][1], shouldAddToRayTracer, shouldAddCellToVector);
+			UpdateCellVectors(children[1][1][0], shouldAddToRayTracer, shouldAddCellToVector);
+			UpdateCellVectors(children[1][1][1], shouldAddToRayTracer, shouldAddCellToVector);
+		}
 	}
 }
 
 void initCellVAO()
 {
-	UpdateCellVectors(octreeRoot, true);
+	UpdateCellVectors(octreeRoot, false, true);
 	glCreateBuffers(1, &m_cellPositionVboID); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
 	numberOfCells = 0;
-	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
+	for (int i = 0; i < clamped_power_of_two_resolution + 1; i++)
 	{
 		numberOfCells += pow(8, i);
 	}
@@ -541,7 +575,7 @@ void initParticleUBO()
 {
 	glGenBuffers(1, &m_particleUBO); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * cellPositions.size()/3 + 3 * sizeof(glm::vec4) + sizeof(glm::vec4) * NUMBER_OF_SPHERE + sizeof(glm::vec4) * blendingRadius.size(), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * glm::min(cellPositions.size()/3, (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) + 3 * sizeof(glm::vec4) + sizeof(glm::vec4) * NUMBER_OF_SPHERE + sizeof(glm::vec4) * blendingRadius.size(), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
@@ -893,9 +927,9 @@ void initScene()
 
 	int sphere_resolution = 100;
 
-	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0, 1.0, 1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE));
-	spheres.push_back(new Sphere(0.2, Vec(0.3, 0.3, 0.3), Vec(1.0, 1.0, 1.0), Vec(0.0, 1.0, 0.0), Refl_t::DIFFUSE));
-	spheres.push_back(new Sphere(0.2, Vec(-0.1, -0.4, 0.0), Vec(1.0, 1.0, 1.0), Vec(1.0, 1.0, 1.0), Refl_t::EMMISSIVE));
+	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0, 1.0, 1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE, -1));
+	spheres.push_back(new Sphere(0.2, Vec(0.3, 0.3, 0.3), Vec(1.0, 1.0, 1.0), Vec(0.0, 1.0, 0.0), Refl_t::DIFFUSE, -1));
+	spheres.push_back(new Sphere(0.2, Vec(-0.1, -0.4, 0.0), Vec(1.0, 1.0, 1.0), Vec(0.0, 0.0, 1.0), Refl_t::DIFFUSE, -1));
 
 	spherePositions.resize(NUMBER_OF_SPHERE);
 	sphereNormals.resize(NUMBER_OF_SPHERE);
@@ -906,33 +940,49 @@ void initScene()
 		createSphere(glm::vec3(spheres[i]->p.x, spheres[i]->p.y, spheres[i]->p.z), spheres[i]->radius, sphere_resolution, i);
 	}
 
-	int power_index = 0;
+	power_of_two_resolution = 0;
+	clamped_power_of_two_resolution = 0;
 	float temp = (float)RESOLUTION;
 
-	while (temp > 1.0 && power_index < 5)
+	while (temp > 1.0)
 	{
 		temp = temp / 2.0;
-		power_index = power_index + 1;
+		if (clamped_power_of_two_resolution < 3)
+		{
+			clamped_power_of_two_resolution++;
+		}
+		power_of_two_resolution++;
 	}
 
-	actual_power_of_two_resolution = power_index;
-	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
+	std::cout << clamped_power_of_two_resolution << std::endl;
+	std::cout << power_of_two_resolution << std::endl;
+	for (int i = 0; i < power_of_two_resolution + 1; i++)
 	{
 		regularGrids.push_back(new RegularGrid(pow(2, i), currentSizeOfGrid));
 	}
 	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
 
-	blendingRadius.resize(4); //blendingRadius.resize(actual_power_of_two_resolution+1);
+	blendingRadius.resize(clamped_power_of_two_resolution+1);
 
-	for (int i = 0; i < actual_power_of_two_resolution + 1; i++)
+	for (int i = 0; i < clamped_power_of_two_resolution + 1; i++)
 	{
-		blendingRadius[i] = glm::vec4((float)(i+1)/(float)(actual_power_of_two_resolution+2), 0.0f, 0.0f, 0.0f);
+		blendingRadius[i] = glm::vec4((float)(i+1)/(float)(clamped_power_of_two_resolution+2), 0.0f, 0.0f, 0.0f);
 		std::cout << "Blending radius " << i << " : " << blendingRadius[i].x << std::endl;
 	}
-	//blendingRadius[0] = glm::vec4(0.2f, 0.0f, 0.0f, 0.0f);
-	blendingRadius[1] = glm::vec4(0.5f, 0.0f, 0.0f, 0.0f);
-	blendingRadius[2] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
-	blendingRadius[3] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+	
+	blendingRadius[0] = glm::vec4(0.2f, 0.0f, 0.0f, 0.0f);
+	if (blendingRadius.size() > 1)
+	{
+		blendingRadius[1] = glm::vec4(0.5f, 0.0f, 0.0f, 0.0f);
+		if (blendingRadius.size() > 2)
+		{
+			blendingRadius[2] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
+			if (blendingRadius.size() > 3)
+			{
+				blendingRadius[3] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+			}
+		}
+	}
 }
 
 void initShaders()
@@ -952,7 +1002,7 @@ void initShaders()
 void initOctree()
 {
 	int position_of_root_in_grid[3] = { 0, 0, 0 };
-	octreeRoot = OctreeNode::BuildOctree(0, actual_power_of_two_resolution - 1, regularGrids[0]->GetCells()[0][0][0], position_of_root_in_grid, regularGrids);
+	octreeRoot = OctreeNode::BuildOctree(0, power_of_two_resolution - 1, regularGrids[0]->GetCells()[0][0][0], position_of_root_in_grid, regularGrids);
 }
 
 int init(int argc, char **argv)
@@ -1079,7 +1129,7 @@ void update(float currentTime, bool realTimeSimulation)
 		cellColorAndIntensity.clear();
 		cellDepth.clear();
 		cellPositions.clear();
-		UpdateCellVectors(octreeRoot, true);
+		UpdateCellVectors(octreeRoot, false, true);
 
 		for (int i = 0; i < regularGrids.size(); i++)
 		{
@@ -1151,7 +1201,7 @@ void update(float currentTime, bool realTimeSimulation)
 		cellColorAndIntensity.clear();
 		cellDepth.clear();
 		cellPositions.clear();
-		UpdateCellVectors(octreeRoot, true);
+		UpdateCellVectors(octreeRoot, false, true);
 
 		for (int i = 0; i < regularGrids.size(); i++)
 		{
@@ -1208,7 +1258,7 @@ void updateUBO()
 
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
 	glm::vec4 actualNumberOfCells[1] = { glm::vec4(lightSources.size(), 0.0f, 0.0f, 0.0f) };
-	GLsizei sizeOfArray = lightSources.size() * sizeof(LightSource);
+	GLsizei sizeOfArray = glm::min(lightSources.size(), (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) * sizeof(LightSource);
 	GLsizei sizeBlendingRadiusArray = blendingRadius.size() * sizeof(glm::vec4);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray, sizeof(glm::vec4), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
@@ -1348,6 +1398,12 @@ void clear()
 	{
 		delete regularGrids[i];
 	}
+
+	for (int i = 0; i < spheres.size(); i++)
+	{
+		delete spheres[i];
+	}
+
 	delete octreeRoot;
 	delete fluid;
 }
@@ -1366,15 +1422,36 @@ inline double clamp(double x, double min, double max)
 		x = max;
 	return x;
 }
-inline bool intersectScene(const Ray &r, double &t, int &id)
+
+inline bool intersectScene(const Ray &r, double &t, int &id, bool intersectWithEmissive = false)
 {
 	double d, inf = t = 1e20;
 	for (int i = 0; i < spheres.size(); ++i)
-		if ((d = spheres[i]->intersect(r)) && d < t)
+	{
+		if (intersectWithEmissive || spheres[i]->refl != EMMISSIVE)
 		{
-			t = d;
-			id = i;
+			if (spheres[i]->refl == EMMISSIVE)
+			{
+				if (blendFunction(Vec(r.d - spheres[i]->p).norm(), spheres[i]->depth) > 0.0)
+				{
+					if ((d = spheres[i]->intersect(r)) && d < t)
+					{
+						t = d;
+						id = i;
+					}
+				}
+			}
+			else
+			{
+				if ((d = spheres[i]->intersect(r)) && d < t)
+				{
+					t = d;
+					id = i;
+				}
+			}
+
 		}
+	}
 	return t < inf;
 }
 
@@ -1412,7 +1489,7 @@ Vec radiance(const Ray &r, int depth)
 {
 	double t;   // distance to intersection
 	int id = 0; // id of intersected object
-	if (!intersectScene(r, t, id))
+	if (!intersectScene(r, t, id, depth != 0))
 		return Vec(); // if miss, return black
 
 	const Sphere &obj = *spheres[id]; // the hit object
@@ -1444,12 +1521,12 @@ Vec radiance(const Ray &r, int depth)
 			const Ray &toLight = Ray(x + 0.0001 * dirToLight, dirToLight);
 			int idTemp;
 			double tTemp;
-			if (intersectScene(toLight, tTemp, idTemp))
+			if (intersectScene(toLight, tTemp, idTemp, true))
 			{
 				if (idTemp == lights[lightIt])
 				{
 					const Vec Li = light.e;
-					rad = rad + Li.mult(obj.c) * brdf(toLight.d, n, -1.0 * r.d) * (n.dot(toLight.d));
+					rad = rad + Li.mult(obj.c) * brdf(toLight.d, n, -1.0 * r.d) * (n.dot(toLight.d)) * blendFunction(Vec(toLight.o - light.p).norm(), light.depth);
 				}
 			}
 		}
@@ -1487,24 +1564,74 @@ Vec radiance(const Ray &r, int depth)
 	return Vec();
 }
 
+float blendFunction(float distance, int depth)
+{
+	float factor = 1.0;
+
+	if (depth == 0 && distance <= blendingRadius[depth].x)
+	{
+		return factor * 1.0;
+	}
+	else if (depth == blendingRadius.size() - 1 && distance >= blendingRadius[depth].x)
+	{
+		return factor * 1.0;
+	}
+
+	if (distance < blendingRadius[depth].x)
+	{
+		return factor * clamp((distance - blendingRadius[depth - 1].x) / (blendingRadius[depth].x - blendingRadius[depth - 1].x), 0.0, 1.0);
+	}
+	else
+	{
+		return factor * clamp((blendingRadius[depth + 1].x - distance) / (blendingRadius[depth + 1].x - blendingRadius[depth].x), 0.0, 1.0);
+	}
+}
 
 void computeRayTracedImage()
 {
-	int w = 1024, h = 768, samps = 10; // # samples
+	cellColorAndIntensityForRayTracer.clear();
+	cellPositionsForRayTracer.clear();
+	cellPositions.clear();
+	cellDepth.clear();
+	cellDepthForRayTracer.clear();
+	cellColorAndIntensity.clear();
+	UpdateCellVectors(octreeRoot, true, true);
+
+	//int w = 1024, h = 768, samps = 1; // # samples
+	int w = 1024, h = 768, samps = 1; // # samples
+
 	Ray cam(Vec(-0.12, -0.0, 4.0), Vec(0, 0, -1).normalize());   // camera center and direction
 	Vec cx = Vec(w * .5 / h), cy = (cx.cross(cam.d)).normalize() * .5, *pixelsColor = new Vec[w * h];
 
 	// setup scene:
-	spheres.push_back(new Sphere(1e5, Vec(-1e5 + CUBE_SIZE, 0.0, 0.0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));   //Left
-	spheres.push_back(new Sphere(1e5, Vec(1e5 - CUBE_SIZE, 0.0, 0.0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE)); //Rght
-	spheres.push_back(new Sphere(1e5, Vec(0, 0, 1e5 - CUBE_SIZE), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Back
-	//spheres.push_back(new Sphere(1e5, Vec(0, 0, -1e5 + CUBE_SIZE), Vec(0, 0, 0), Vec(0, 0, 0), DIFFUSE));        //Front
-	spheres.push_back(new Sphere(1e5, Vec(0, 1e5 - CUBE_SIZE, 0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Bottom
-	spheres.push_back(new Sphere(1e5, Vec(0, -1e5 + CUBE_SIZE, 0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE));         //Top
-	/*spheres.push_back(Sphere(16.5, Vec(27, 16.5, 47), Vec(0, 0, 0), Vec(1, 1, 1) * .999, MIRROR));         //Mirr
-	spheres.push_back(Sphere(16.5, Vec(73, 16.5, 78), Vec(0, 0, 0), Vec(1, 1, 1) * .999, GLASS));         //Change to Glass
-	spheres.push_back(Sphere(5, Vec(50, 70, 50), Vec(1, 1, 1), Vec(0, 0, 0), EMMISSIVE));     */             //Light
-	lights.push_back(1);
+	spheres.push_back(new Sphere(1e5, Vec(-1e5 + CUBE_SIZE, 0.0, 0.0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE, -1));   //Left
+	spheres.push_back(new Sphere(1e5, Vec(1e5 - CUBE_SIZE, 0.0, 0.0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE, -1)); //Rght
+	spheres.push_back(new Sphere(1e5, Vec(0, 0, 1e5 - CUBE_SIZE), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE, -1));         //Back
+	//spheres.push_back(new Sphere(1e5, Vec(0, 0, -1e5 + CUBE_SIZE), Vec(0, 0, 0), Vec(0, 0, 0), DIFFUSE, -1));        //Front
+	spheres.push_back(new Sphere(1e5, Vec(0, 1e5 - CUBE_SIZE, 0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE, -1));         //Bottom
+	spheres.push_back(new Sphere(1e5, Vec(0, -1e5 + CUBE_SIZE, 0), Vec(0, 0, 0), Vec(.75, .75, .75), DIFFUSE, -1));         //Top
+	/*spheres.push_back(Sphere(16.5, Vec(27, 16.5, 47), Vec(0, 0, 0), Vec(1, 1, 1) * .999, MIRROR, -1));         //Mirr
+	spheres.push_back(Sphere(16.5, Vec(73, 16.5, 78), Vec(0, 0, 0), Vec(1, 1, 1) * .999, GLASS, -1));         //Change to Glass*/
+
+	int spheresSize = spheres.size();
+	if (spheres.size() > NUMBER_OF_SPHERE + 5)
+	{
+		for (int i = NUMBER_OF_SPHERE + 5; i < spheresSize; i++)
+		{
+			delete spheres[i];
+		}
+	}
+	spheres.erase(spheres.begin() + NUMBER_OF_SPHERE + 5, spheres.end());
+	lights.clear();
+
+	for (int i = 0; i < lightSources.size(); i++)
+	{
+		spheres.push_back(new Sphere(0.01,
+			Vec(lightSources[i].position.x, lightSources[i].position.y, lightSources[i].position.z),
+			1.0 / cellPositionsForRayTracer.size() * 9.0 * Vec(lightSources[i].color_and_intensity.x, lightSources[i].color_and_intensity.y, lightSources[i].color_and_intensity.z),
+			Vec(lightSources[i].color_and_intensity.x, lightSources[i].color_and_intensity.y, lightSources[i].color_and_intensity.z), EMMISSIVE, lightSources[i].depth.x));
+		lights.push_back(NUMBER_OF_SPHERE + 5 + i);
+	}
 
 	// ray trace:
 	for (int y = 0; y < h; y++)
@@ -1533,7 +1660,9 @@ void computeRayTracedImage()
 	{
 		fprintf(f, "P3\n%d %d\n%d\n", w, h, 255);
 		for (int i = 0; i < w * h; i++)
+		{
 			fprintf(f, "%d %d %d ", (int)(pixelsColor[i].x * 255), (int)(pixelsColor[i].y * 255), (int)(pixelsColor[i].z * 255));
+		}
 		fclose(f);
 	}
 }
