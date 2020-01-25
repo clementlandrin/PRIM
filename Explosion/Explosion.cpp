@@ -1432,7 +1432,7 @@ inline bool intersectScene(const Ray &r, double &t, int &id, bool intersectWithE
 		{
 			if (spheres[i]->refl == EMMISSIVE)
 			{
-				if (blendFunction(Vec(r.d - spheres[i]->p).norm(), spheres[i]->depth) > 0.0)
+				if (blendFunction(Vec(r.o - spheres[i]->p).norm(), spheres[i]->depth) > 0.0)
 				{
 					if ((d = spheres[i]->intersect(r)) && d < t)
 					{
