@@ -45,16 +45,6 @@ void Cell::EraseParticleAtIndex(int index)
   }
 }
 
-void Cell::ComputeEnergy()
-{
-  m_Energy = 0.0;
-
-  for (int i = 0; i < m_Particles.size(); i++)
-  {
-    m_Energy += m_Particles[i]->GetEnergy();
-  }
-}
-
 glm::vec3 Cell::UpdateSpeed()
 {
 	m_Speed = glm::vec3(0.0);
@@ -94,9 +84,9 @@ const float Cell::GetCellDepth()
   return m_CellDepth;
 }
 
-const float Cell::GetEnergy()
+const float Cell::GetPressure()
 {
-  return m_Energy;
+  return m_Pressure;
 }
 
 const Cell* Cell::GetParent()
@@ -153,9 +143,9 @@ void Cell::SetCellDepth(float depth)
   m_CellDepth = depth;
 }
 
-void Cell::SetEnergy(float energy)
+void Cell::SetPressure(float pressure)
 {
-  m_Energy = energy;
+  m_Pressure = pressure;
 }
 
 void Cell::SetParent(Cell* parent)
@@ -165,7 +155,7 @@ void Cell::SetParent(Cell* parent)
 
 Cell * Cell::GetOnTopCell()
 {
-	if (m_IndexInRegularGrid[1] < m_RegularGrid->GetResolution() - 1)
+	if (m_IndexInRegularGrid[1] < m_RegularGrid->GetResolution()[1] - 1)
 	{
 		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0]][m_IndexInRegularGrid[1] + 1][m_IndexInRegularGrid[2]];
 	}
@@ -201,7 +191,7 @@ Cell * Cell::GetOnLeftCell()
 
 Cell * Cell::GetOnRightCell()
 {
-	if (m_IndexInRegularGrid[0] < m_RegularGrid->GetResolution() - 1)
+	if (m_IndexInRegularGrid[0] < m_RegularGrid->GetResolution()[0] - 1)
 	{
 		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0] + 1][m_IndexInRegularGrid[1]][m_IndexInRegularGrid[2]];
 	}
@@ -225,7 +215,7 @@ Cell * Cell::GetOnFrontCell()
 
 Cell * Cell::GetOnBackCell()
 {
-	if (m_IndexInRegularGrid[2] < m_RegularGrid->GetResolution() - 1)
+	if (m_IndexInRegularGrid[2] < m_RegularGrid->GetResolution()[2] -1)
 	{
 		return m_RegularGrid->GetCells()[m_IndexInRegularGrid[0]][m_IndexInRegularGrid[1]][m_IndexInRegularGrid[2] + 1];
 	}
@@ -233,135 +223,4 @@ Cell * Cell::GetOnBackCell()
 	{
 		return nullptr;
 	}
-}
-
-void Cell::ComputeGradientAndVGradV()
-{
-	if (m_Particles.size() == 0)
-	{
-		m_Gradient = glm::vec3(0.0f);
-		m_VGradv = glm::vec3(0.0f);
-		return;
-	}
-
-	Cell* front_cell = GetOnFrontCell();
-	Cell* back_cell = GetOnBackCell();
-	Cell* top_cell = GetOnTopCell();
-	Cell* bottom_cell = GetOnBottomCell();
-	Cell* left_cell = GetOnLeftCell();
-	Cell* right_cell = GetOnRightCell();
-
-	glm::vec3 speed_front_cell = glm::vec3(0.0);
-	glm::vec3 speed_back_cell = glm::vec3(0.0);
-	glm::vec3 speed_top_cell = glm::vec3(0.0);
-	glm::vec3 speed_bottom_cell = glm::vec3(0.0);
-	glm::vec3 speed_left_cell = glm::vec3(0.0);
-	glm::vec3 speed_right_cell = glm::vec3(0.0);
-
-	if (front_cell)
-	{
-		speed_front_cell = front_cell->GetSpeed();
-	}
-	if (back_cell)
-	{
-		speed_back_cell = back_cell->GetSpeed();
-	}
-	if (top_cell)
-	{
-		speed_top_cell = top_cell->GetSpeed();
-	}
-	if (bottom_cell)
-	{
-		speed_bottom_cell = bottom_cell->GetSpeed();
-	}
-	if (left_cell)
-	{
-		speed_left_cell = left_cell->GetSpeed();
-	}
-	if (right_cell)
-	{
-		speed_right_cell = right_cell->GetSpeed();
-	}
-
-	glm::vec3 onX = (speed_right_cell - speed_left_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
-	glm::vec3 onY = (speed_top_cell - speed_bottom_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
-	glm::vec3 onZ = (speed_back_cell - speed_front_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
-
-	m_Gradient = glm::vec3(onX.x, onY.y, onZ.z);
-
-	m_VGradv = glm::vec3(
-		m_Speed.x * onX.x + m_Speed.y * onY.x + m_Speed.z * onZ.x,
-		m_Speed.x * onX.y + m_Speed.y * onY.y + m_Speed.z * onZ.y,
-		m_Speed.x * onX.z + m_Speed.y * onY.z + m_Speed.z * onZ.z);
-}
-
-void Cell::ComputeLaplacian()
-{
-	if (m_Particles.size() == 0)
-	{
-		m_Laplacian = glm::vec3(0.0f);
-		return;
-	}
-
-	Cell* front_cell = GetOnFrontCell();
-	Cell* back_cell = GetOnBackCell();
-	Cell* top_cell = GetOnTopCell();
-	Cell* bottom_cell = GetOnBottomCell();
-	Cell* left_cell = GetOnLeftCell();
-	Cell* right_cell = GetOnRightCell();
-
-	glm::vec3 gradient_front_cell = glm::vec3(0.0);
-	glm::vec3 gradient_back_cell = glm::vec3(0.0);
-	glm::vec3 gradient_top_cell = glm::vec3(0.0);
-	glm::vec3 gradient_bottom_cell = glm::vec3(0.0);
-	glm::vec3 gradient_left_cell = glm::vec3(0.0);
-	glm::vec3 gradient_right_cell = glm::vec3(0.0);
-
-	if (front_cell)
-	{
-		gradient_front_cell = front_cell->GetGradient();
-	}
-	if (back_cell)
-	{
-		gradient_back_cell = back_cell->GetGradient();
-	}
-	if (top_cell)
-	{
-		gradient_top_cell = top_cell->GetGradient();
-	}
-	if (bottom_cell)
-	{
-		gradient_bottom_cell = bottom_cell->GetGradient();
-	}
-	if (left_cell)
-	{
-		gradient_left_cell = left_cell->GetGradient();
-	}
-	if (right_cell)
-	{
-		gradient_right_cell = right_cell->GetGradient();
-	}
-
-	glm::vec3 onX = (gradient_right_cell - gradient_left_cell) * 0.5f *(float)m_RegularGrid->GetResolution();
-	glm::vec3 onY = (gradient_top_cell - gradient_bottom_cell) * 0.5f*(float)m_RegularGrid->GetResolution();
-	glm::vec3 onZ = (gradient_back_cell - gradient_front_cell) * 0.5f*(float)m_RegularGrid->GetResolution();
-
-	m_Laplacian = glm::vec3(onX.x + onY.x + onZ.x, onX.y + onY.y + onZ.y, onX.z + onY.z + onZ.z);
-}
-
-void Cell::PushNavierStokesParameters()
-{
-	for (int i = 0; i < m_Particles.size(); i++)
-	{
-		m_Particles[i]->SetGradient(m_Gradient);
-		m_Particles[i]->SetLaplacian(m_Laplacian);
-		m_Particles[i]->SetVGradV(m_VGradv);
-	}
-}
-
-void Cell::ResetNavierStokesParameters()
-{
-	m_Gradient = glm::vec3(0.0);
-	m_Laplacian = glm::vec3(0.0);
-	m_VGradv = glm::vec3(0.0);
 }

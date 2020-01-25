@@ -60,8 +60,7 @@ OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell, int po
   nodePtr->SetDepth(depth);
   nodePtr->SetCell(cell);
 
-  cell->ComputeEnergy();
-  float data = cell->GetEnergy();
+  //cell->ComputePressure();
 
 	if(depth>maxDepth)
 	{

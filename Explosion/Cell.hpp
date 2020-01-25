@@ -19,7 +19,6 @@ public:
 	void AddParticle(Particle* particle);
 	void ClearParticles();
 	void EraseParticleAtIndex(int index);
-	void ComputeEnergy();
 	glm::vec3 UpdateSpeed();
 	const glm::vec3 ComputeCenter(bool shouldMoveCenterToParticleBarycenter);
 	void ComputeGradientAndVGradV();
@@ -32,7 +31,7 @@ public:
   	const float GetCellWidth();
   	const float GetCellHeight();
   	const float GetCellDepth();
-  	const float GetEnergy();
+  	const float GetPressure();
 	const Cell* GetParent();
 	const glm::vec3 GetSpeed();
 	const glm::vec3 GetGradient();
@@ -42,7 +41,7 @@ public:
 	void SetCellWidth(float width);
 	void SetCellHeight(float height);
 	void SetCellDepth(float depth);
-	void SetEnergy(float energy);
+	void SetPressure(float pressure);
 	void SetParent(Cell* parent);
 private:
 	Cell* GetOnTopCell();
@@ -59,7 +58,7 @@ private:
 	float m_CellHeight;
 	float m_CellDepth;
 	glm::vec3 m_Speed;
-	float m_Energy;
+	float m_Pressure;
 	std::vector<Particle*> m_Particles;
 	int m_IndexInRegularGrid[3];
 	glm::vec3 m_Gradient;

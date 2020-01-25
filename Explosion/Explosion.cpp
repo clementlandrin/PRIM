@@ -14,11 +14,10 @@
 #include <vector>
 #include <algorithm>
 
-#define SIMULATION_FILE_NAME "simulation_2.txt"
+#define SIMULATION_FILE_NAME "smoke.bin"
 
-#include "Particle.hpp"
-#include "Fluid.hpp"
-#include "OctreeNode.hpp"
+#define PRESSURE_AT_DEPTH(D) pressureValuesDepth(#D)
+
 #include "Cell.hpp"
 #include "RegularGrid.h"
 #include "ShaderProgram.h"
@@ -33,10 +32,8 @@
 
 #define VISCOSITY 10000.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 15000
 #define FLUID_PROPORTION_IN_CUBE 0.1f
 #define CUBE_SIZE 0.75f
-#define RESOLUTION 4
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 
 #define NUMBER_OF_SPHERE 3
@@ -44,7 +41,6 @@
 int depthToDisplay = -1;
 
 bool drawCellCenter = false;
-bool drawParticles = true;
 
 std::ifstream in;
 std::ofstream out;
@@ -53,10 +49,11 @@ bool pause = false;
 
 int frameNumber = 0;
 
-bool shouldGenerateNewParticlesEachFrame = false;
+float pressures[227][255][227][20];
+
+int resolution[] = { 100, 128, 100, 20 };
+
 bool shouldRenderLighting = true;
-bool shouldRegisterSimulation = false;
-bool shouldPlayRegisteredSimulation = true;
 
 bool isRotating = false;
 glm::vec2 lastRotatingCursorPosition;
@@ -182,11 +179,8 @@ glm::mat4 projection_matrix = glm::mat4(
 	0.00000, 0.00000, -1.00020, -1.00000,
 	0.00000, 0.00000, -10.00100, 0.00000);
 
-Fluid* fluid;
-
 int numberOfCells;
 
-std::vector<float> particlePositions;
 std::vector<float> squarePositions;
 std::vector<float> squareNormals;
 
@@ -204,13 +198,10 @@ std::vector<float> cellDepthForRayTracer;
 
 std::vector<Sphere*> spheres;
 std::vector<LightSource> lightSources;
-std::vector<RegularGrid*> regularGrids;
+//std::vector<RegularGrid*> regularGrids;
 std::vector<glm::vec4> blendingRadius;
 
-OctreeNode* octreeRoot;
-
-GLuint m_particleVboID;
-GLuint m_particleUBO;
+GLuint m_UBO;
 
 GLuint m_squarePositionVboID;
 GLuint m_squareNormalVBO;
@@ -225,13 +216,10 @@ GLuint m_cellPositionVboID;
 GLuint m_cellColorAndIntensityVboID;
 GLuint m_cellVao;
 
-GLuint particleProgramID;
 GLuint lightingProgramID;
 GLuint cellProgramID;
 
 float cellIntensity = 0.0f;
-
-glm::vec3 currentSizeOfGrid = glm::vec3(FLUID_PROPORTION_IN_CUBE*CUBE_SIZE*2.0);
 
 #define TEST_OPENGL_ERROR()                                                             \
   do {		  							\
@@ -244,11 +232,6 @@ void updateUniformMatrixOfShaders()
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 	ShaderProgram::set("model_view_matrix", model_view_matrix, lightingProgramID); TEST_OPENGL_ERROR();
 	ShaderProgram::set("projection_matrix", projection_matrix, lightingProgramID); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();
-
-	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("model_view_matrix", model_view_matrix, particleProgramID); TEST_OPENGL_ERROR();
-	ShaderProgram::set("projection_matrix", projection_matrix, particleProgramID); TEST_OPENGL_ERROR();
 	glUseProgram(0); TEST_OPENGL_ERROR();
 
 	glUseProgram(cellProgramID); TEST_OPENGL_ERROR();
@@ -349,59 +332,13 @@ void keyboardCallback(unsigned char key, int x, int y)
 			std::cout << "Won't draw cell center" << std::endl;
 		}
 		break;
-	case 'p':
-		std::cout << "Pressed key p : ";
-
-		drawParticles = !drawParticles;
-		if (drawParticles)
-		{
-			std::cout << "Draw particles" << std::endl;
-		}
-		else
-		{
-			std::cout << "Won't draw particles" << std::endl;
-		}
-		break;
 	}
 }
 
-void updatePositions()
+glm::vec3 computeFireColor(int depth, float pressure)
 {
-	particlePositions.resize(fluid->GetParticles().size() * 3);
-
-	for (int i = 0; i < fluid->GetParticles().size(); i++)
-	{
-		particlePositions[3 * i] = fluid->GetParticles()[i]->GetPosition().x;
-		particlePositions[3 * i + 1] = fluid->GetParticles()[i]->GetPosition().y;
-		particlePositions[3 * i + 2] = fluid->GetParticles()[i]->GetPosition().z;
-	}
-}
-
-void initPositions()
-{
-	particlePositions.resize(fluid->GetParticles().size() * 3);
-
-	updatePositions();
-}
-
-void initParticleVbo()
-{
-	glGenBuffers(1, &m_particleVboID); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_particleVboID); TEST_OPENGL_ERROR();
-	if (shouldGenerateNewParticlesEachFrame)
-	{
-		glBufferData(GL_ARRAY_BUFFER, particlePositions.size() * sizeof(float) * 10, &(particlePositions[0]), GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
-	}
-	else
-	{
-		glBufferData(GL_ARRAY_BUFFER, particlePositions.size() * sizeof(float), &(particlePositions[0]), GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
-	}
-	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
-}
-
-glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
-{
-	float proportion = numberOfParticlesInCell / (PARTICLE_NUMBER / pow(8, depth));
+	float max_pressure = 1.0f;
+	float proportion = pressure / (max_pressure);
 	glm::vec3 color = glm::vec3(1.0f);
 	if (proportion > 4.0f / 5.0f)
 	{
@@ -426,70 +363,15 @@ glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
 	return glm::vec3(1.0f);
 }
 
-void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddToRayTracer, bool shouldAddCellToVector = false)
+void updateCells()
 {
-	float numberOfParticlesInCell = octreeNode->GetCell()->GetParticles().size();
-	glm::vec3 color = computeFireColor(octreeNode->GetDepth(), numberOfParticlesInCell);
 
-	if (shouldAddCellToVector)
-	{
-		if (octreeNode->GetDepth() <= clamped_power_of_two_resolution)
-		{
-			cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[0]);
-			cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[1]);
-			cellPositions.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[2]);
-		}
-	}
-
-	if (octreeNode->GetDepth() <= clamped_power_of_two_resolution)
-	{
-		cellColorAndIntensity.push_back(color.x);
-		cellColorAndIntensity.push_back(color.y);
-		cellColorAndIntensity.push_back(color.z);
-		cellColorAndIntensity.push_back(glm::max((float)((float)numberOfParticlesInCell / (float)PARTICLE_NUMBER), 0.0f));
-
-		cellDepth.push_back(octreeNode->GetDepth());
-	}
-
-	if (shouldAddToRayTracer)
-	{
-		cellPositionsForRayTracer.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[0]);
-		cellPositionsForRayTracer.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[1]);
-		cellPositionsForRayTracer.push_back(octreeNode->GetCell()->ComputeCenter(shouldPlayRegisteredSimulation)[2]);
-
-		cellColorAndIntensityForRayTracer.push_back(color.x);
-		cellColorAndIntensityForRayTracer.push_back(color.y);
-		cellColorAndIntensityForRayTracer.push_back(color.z);
-		cellColorAndIntensityForRayTracer.push_back(glm::max((float)((float)numberOfParticlesInCell / (float)PARTICLE_NUMBER), 0.0f));
-
-		cellDepthForRayTracer.push_back(octreeNode->GetDepth());
-	}
-}
-
-void UpdateCellVectors(OctreeNode* octreeNode, bool shouldAddToRayTracer, bool shouldAddCellToVector = false)
-{	
-	addCellToCellPositionVector(octreeNode, shouldAddToRayTracer, shouldAddCellToVector);
-
-	if (octreeNode->GetDepth() < clamped_power_of_two_resolution || shouldAddToRayTracer)
-	{
-		if (!octreeNode->GetIsALeaf())
-		{
-			std::vector<std::vector<std::vector<OctreeNode*>>> children = octreeNode->GetChildren();
-			UpdateCellVectors(children[0][0][0], shouldAddToRayTracer, shouldAddCellToVector);
-			UpdateCellVectors(children[0][0][1], shouldAddToRayTracer, shouldAddCellToVector);
-			UpdateCellVectors(children[0][1][0], shouldAddToRayTracer, shouldAddCellToVector);
-			UpdateCellVectors(children[0][1][1], shouldAddToRayTracer, shouldAddCellToVector);
-			UpdateCellVectors(children[1][0][0], shouldAddToRayTracer, shouldAddCellToVector);
-			UpdateCellVectors(children[1][0][1], shouldAddToRayTracer, shouldAddCellToVector);
-			UpdateCellVectors(children[1][1][0], shouldAddToRayTracer, shouldAddCellToVector);
-			UpdateCellVectors(children[1][1][1], shouldAddToRayTracer, shouldAddCellToVector);
-		}
-	}
 }
 
 void initCellVAO()
 {
-	UpdateCellVectors(octreeRoot, false, true);
+	updateCells();
+
 	glCreateBuffers(1, &m_cellPositionVboID); TEST_OPENGL_ERROR(); // Generate a GPU buffer to store the positions of the vertices
 	numberOfCells = 0;
 	for (int i = 0; i < clamped_power_of_two_resolution + 1; i++)
@@ -571,20 +453,16 @@ void initSquareVAO()
 	glBindVertexArray(0); TEST_OPENGL_ERROR(); // Desactive the VAO just created. Will be activated at rendering time.
 }
 
-void initParticleUBO()
+void initUBO()
 {
-	glGenBuffers(1, &m_particleUBO); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
+	glGenBuffers(1, &m_UBO); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_UNIFORM_BUFFER, m_UBO); TEST_OPENGL_ERROR();
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * glm::min(cellPositions.size()/3, (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) + 3 * sizeof(glm::vec4) + sizeof(glm::vec4) * NUMBER_OF_SPHERE + sizeof(glm::vec4) * blendingRadius.size(), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
 void initBuffers()
 {
-	initParticleVbo();
-
-	///////////////////////////////////////
-
 	initCellVAO();
 
 	///////////////////////////////////////
@@ -600,24 +478,7 @@ void initBuffers()
 
 	////////////////////////////////
 
-	initParticleUBO();
-}
-
-void generateParticles(int particleNumber)
-{
-	float fluidInitialSpace = FLUID_PROPORTION_IN_CUBE * CUBE_SIZE;
-	fluid->GenerateParticlesUniformly(particleNumber, glm::vec3(0.0f, -0.5f + fluidInitialSpace * 0.5f, 0.0f), fluidInitialSpace, fluidInitialSpace, fluidInitialSpace, 0.1f);
-}
-
-void clearParticles()
-{
-	fluid->ClearParticles();
-}
-
-void initFluid()
-{
-	fluid = new Fluid(VISCOSITY, DENSITY);
-	generateParticles(PARTICLE_NUMBER);
+	initUBO();
 }
 
 void bottomFace(int offset, float size)
@@ -940,28 +801,12 @@ void initScene()
 		createSphere(glm::vec3(spheres[i]->p.x, spheres[i]->p.y, spheres[i]->p.z), spheres[i]->radius, sphere_resolution, i);
 	}
 
-	power_of_two_resolution = 0;
-	clamped_power_of_two_resolution = 0;
-	float temp = (float)RESOLUTION;
-
-	while (temp > 1.0)
+	/*for (int i = 0; i < power_of_two_resolution + 1; i++)
 	{
-		temp = temp / 2.0;
-		if (clamped_power_of_two_resolution < 3)
-		{
-			clamped_power_of_two_resolution++;
-		}
-		power_of_two_resolution++;
-	}
+		regularGrids.push_back(new RegularGrid(resolution, glm::vec3(CUBE_SIZE)));
+	}*/
 
 	std::cout << clamped_power_of_two_resolution << std::endl;
-	std::cout << power_of_two_resolution << std::endl;
-	for (int i = 0; i < power_of_two_resolution + 1; i++)
-	{
-		regularGrids.push_back(new RegularGrid(pow(2, i), currentSizeOfGrid));
-	}
-	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
-
 	blendingRadius.resize(clamped_power_of_two_resolution+1);
 
 	for (int i = 0; i < clamped_power_of_two_resolution + 1; i++)
@@ -988,7 +833,6 @@ void initScene()
 void initShaders()
 {
 	// Create and compile our GLSL program from the shaders
-	particleProgramID = ShaderProgram::LoadShaders("Resources/vertex.shd", "Resources/fragment.shd");
 	lightingProgramID = ShaderProgram::LoadShaders("Resources/lighting_vertex.shd", "Resources/lighting_fragment.shd");
 	cellProgramID = ShaderProgram::LoadShaders("Resources/cell_vertex.shd", "Resources/cell_fragment.shd");
 
@@ -999,10 +843,71 @@ void initShaders()
 	updateUniformMatrixOfShaders();
 }
 
-void initOctree()
+bool readFile(std::ifstream &in)
 {
-	int position_of_root_in_grid[3] = { 0, 0, 0 };
-	octreeRoot = OctreeNode::BuildOctree(0, power_of_two_resolution - 1, regularGrids[0]->GetCells()[0][0][0], position_of_root_in_grid, regularGrids);
+	in.open(SIMULATION_FILE_NAME);
+	// get length of file:
+	in.seekg(0, std::ios_base::end);
+	int length = in.tellg();
+	length /= sizeof(float);
+	in.seekg(0, std::ios_base::beg);
+	std::cout << length << std::endl;
+	// allocate memory:
+	float * buffer = new float[length];
+
+	in.read((char *)buffer, sizeof(float)*length);
+
+	/*resolution[0] = *reinterpret_cast<int*>(&buffer[0]);
+	resolution[1] = *reinterpret_cast<int*>(&buffer[1]);
+	resolution[2] = *reinterpret_cast<int*>(&buffer[2]);
+	resolution[3] = *reinterpret_cast<int*>(&buffer[3]);*/
+
+	int maxSizeDimension = glm::max(resolution[0], glm::max(resolution[1], resolution[2]));
+	
+	power_of_two_resolution = 0;
+	clamped_power_of_two_resolution = 0;
+	float temp = 1.0;
+
+	while (temp < maxSizeDimension)
+	{
+		temp = temp * 2.0;
+		if (clamped_power_of_two_resolution < 3)
+		{
+			clamped_power_of_two_resolution++;
+		}
+		power_of_two_resolution++;
+	}
+
+	std::cout << power_of_two_resolution << std::endl;
+	std::cout << clamped_power_of_two_resolution << std::endl;
+
+	float pressure;
+
+	for (int x = 0; x < resolution[0]; x++)
+	{
+		fprintf(stderr, "\rLoading file %5.2f%%", 100. * x / (resolution[0] - 1));
+		for (int  y= 0; y < resolution[1]; y++)
+		{
+			for (int z = 0; z < resolution[2]; z++)
+			{
+				for (int f = 0; f < resolution[3]; f++)
+				{
+
+					pressure = buffer[4 + x * resolution[1] * 133 * resolution[3] + y * resolution[2] * resolution[3] + z * resolution[3] + f];
+					//pressures[0][0][0][f] += pressure;
+					for (int i = 1; i < 8; i++)
+					{
+						pressures[(int)(pow(2, i) + x / pow(2, 7 - i))][(int)(pow(2, i) + y / pow(2, 7 - i))][(int)(pow(2, i) + z / pow(2, 7 - i))][f] = 1.0;
+					}
+				}
+			}
+		}
+	}
+	std::cout << "\nFILE LOADED" << std::endl;
+
+	in.close();
+	delete buffer;
+	return true;
 }
 
 int init(int argc, char **argv)
@@ -1022,63 +927,14 @@ int init(int argc, char **argv)
 	glEnable(GL_DEPTH_TEST); TEST_OPENGL_ERROR();
 	glCullFace(GL_BACK); TEST_OPENGL_ERROR();
 	glEnable(GL_CULL_FACE); TEST_OPENGL_ERROR();
-	initFluid();
-	initPositions();
+	
+	readFile(in);
+
 	initScene();
-	initOctree();
 	initBuffers();
 	initShaders();
+
 	return 0;
-}
-
-void writeInt(std::ofstream& file, int val) {
-	file.write(reinterpret_cast<char *>(&val), sizeof(int));
-}
-
-void writeFloat(std::ofstream& file, float val) {
-	file.write(reinterpret_cast<char *>(&val), sizeof(float));
-}
-
-void writeFrameInFile(std::ofstream &out)
-{
-	writeInt(out, fluid->GetParticles().size());
-	for (int i = 0; i < fluid->GetParticles().size(); i++)
-	{
-		writeFloat(out, fluid->GetParticles()[i]->GetPosition().x);
-		writeFloat(out, fluid->GetParticles()[i]->GetPosition().y);
-		writeFloat(out, fluid->GetParticles()[i]->GetPosition().z);
-	}
-}
-
-bool readFrameInFile(std::ifstream &in)
-{
-	int numberOfParticles;
-	glm::vec3 position;
-	
-	in.read((char *)&numberOfParticles, sizeof(int));
-	if (numberOfParticles == -1)
-	{
-		in.close();
-		in.open(SIMULATION_FILE_NAME, std::ios_base::binary);
-		return readFrameInFile(in);
-	}
-	else if (numberOfParticles <= 0)
-	{
-		std::cout << "Read " << numberOfParticles << " particles from file" << std::endl;
-		return false;
-	}
-	else
-	{
-		fluid->ClearParticles();
-		for (int i = 0; i < numberOfParticles; i++)
-		{
-			in.read((char *)&(position.x), sizeof(float));
-			in.read((char *)&(position.y), sizeof(float));
-			in.read((char *)&(position.z), sizeof(float));
-			fluid->AddParticle(position, 1.0f / numberOfParticles);
-		}
-	}
-	return true;
 }
 
 void update(float currentTime, bool realTimeSimulation)
@@ -1104,126 +960,7 @@ void update(float currentTime, bool realTimeSimulation)
 		timeFactor = 0.03f;
 	}
 
-	if (shouldPlayRegisteredSimulation)
-	{
-		clearParticles();
-		currentSizeOfGrid = glm::vec3(CUBE_SIZE*2.0);
-
-		if (in.good())
-		{
-			if (!readFrameInFile(in))
-			{
-				in.close();
-				while (1)
-				{
-					//std::cout << "Cannot read file" << std::endl;
-				}
-			}
-		}
-
-		regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
-
-		octreeRoot->SetCell(regularGrids[0]->GetCells()[0][0][0]);
-		octreeRoot->UpdateParticlesInChildrenCells();
-
-		cellColorAndIntensity.clear();
-		cellDepth.clear();
-		cellPositions.clear();
-		UpdateCellVectors(octreeRoot, false, true);
-
-		for (int i = 0; i < regularGrids.size(); i++)
-		{
-			regularGrids[i]->ResizeGrid(currentSizeOfGrid);
-		}
-	}
-	else
-	{
-		glm::vec3 maxSpeed = regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
-		/*currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor, 2.0f * CUBE_SIZE);
-		currentSizeOfGrid[1] = glm::min(currentSizeOfGrid[1] + maxSpeed[1] * timeFactor, 2.0f * CUBE_SIZE);
-		currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor, 2.0f * CUBE_SIZE);*/
-
-		fluid->UpdateParticlePositions(timeFactor * CUBE_SIZE, CUBE_SIZE);
-		if (shouldGenerateNewParticlesEachFrame && fluid->GetParticles().size() + PARTICLE_NUMBER * 0.01 < 10 * PARTICLE_NUMBER)
-		{
-			generateParticles(PARTICLE_NUMBER * 0.01);
-		}
-
-		if (shouldRegisterSimulation)
-		{
-			if (!out.is_open())
-			{
-				out = std::ofstream(SIMULATION_FILE_NAME, std::ios::out | std::ios::binary);
-			}
-			if (out.good())
-			{
-				writeFrameInFile(out);
-			}
-		}
-
-		regularGrids[regularGrids.size() - 1]->UpdateGradientAndVGradVOfCells();
-		regularGrids[regularGrids.size() - 1]->UpdateLaplacianOfCells();
-		regularGrids[regularGrids.size() - 1]->PushNavierStokesParametersToParticles();
-
-		if (fluid->GetParticles().size() < PARTICLE_NUMBER * 0.1 || (SIMULATION_MAX_DURATION != 0.0f && currentTime - zeroTimeOfSimulation > SIMULATION_MAX_DURATION))
-		{
-			std::cout << "Simulation duration : " << (glutGet(GLUT_ELAPSED_TIME) - zeroTimeOfSimulation)/1000.0f << " seconds" << std::endl;
-			if (in.good())
-			{
-				in.close();
-			}
-			if (out.good())
-			{
-				writeInt(out, -1);
-				out.close();
-			}
-			regularGrids[regularGrids.size() - 1]->ResetNavierStokesParametersOfCells();
-			clearParticles();
-			currentSizeOfGrid = glm::vec3(CUBE_SIZE*2.0);
-			generateParticles(PARTICLE_NUMBER);
-			// Register only the first simulation for now.
-			shouldRegisterSimulation = false;
-			shouldPlayRegisteredSimulation = true;
-			in = std::ifstream(SIMULATION_FILE_NAME, std::ios_base::binary);
-			frameNumber = 0;
-		}
-	}
-
-	updatePositions();
-
-	if (shouldRegisterSimulation)
-	{
-		regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
-
-		octreeRoot->SetCell(regularGrids[0]->GetCells()[0][0][0]);
-		octreeRoot->UpdateParticlesInChildrenCells();
-
-		cellColorAndIntensity.clear();
-		cellDepth.clear();
-		cellPositions.clear();
-		UpdateCellVectors(octreeRoot, false, true);
-
-		for (int i = 0; i < regularGrids.size(); i++)
-		{
-			regularGrids[i]->ResizeGrid(currentSizeOfGrid);
-		}
-	}
-
-}
-
-void drawParticlesVBO()
-{
-	glUseProgram(particleProgramID); TEST_OPENGL_ERROR();
-
-	glEnableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, m_particleVboID); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_ARRAY_BUFFER, 0, particlePositions.size() * sizeof(float), &(particlePositions[0])); TEST_OPENGL_ERROR();
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); TEST_OPENGL_ERROR();
-	glDrawArrays(GL_POINTS, 0, particlePositions.size() / 3); TEST_OPENGL_ERROR();
-
-	glDisableVertexAttribArray(0); TEST_OPENGL_ERROR();
-	glBindBuffer(GL_ARRAY_BUFFER, 0); TEST_OPENGL_ERROR();
-	glUseProgram(0); TEST_OPENGL_ERROR();
+	updateCells();
 }
 
 void updateUBO()
@@ -1256,7 +993,7 @@ void updateUBO()
 	glm::vec4 actualNumberOfSpheres[1] = { glm::vec4(NUMBER_OF_SPHERE, 0.0f, 0.0f, 0.0f) };
 	glm::vec4 numberOfRadius[1] = { glm::vec4(blendingRadius.size(), 0.0f, 0.0f, 0.0f) };
 
-	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
+	glBindBuffer(GL_UNIFORM_BUFFER, m_UBO); TEST_OPENGL_ERROR();
 	glm::vec4 actualNumberOfCells[1] = { glm::vec4(lightSources.size(), 0.0f, 0.0f, 0.0f) };
 	GLsizei sizeOfArray = glm::min(lightSources.size(), (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) * sizeof(LightSource);
 	GLsizei sizeBlendingRadiusArray = blendingRadius.size() * sizeof(glm::vec4);
@@ -1269,7 +1006,7 @@ void updateUBO()
 
 	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock"); TEST_OPENGL_ERROR();
 	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0); TEST_OPENGL_ERROR();
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_particleUBO); TEST_OPENGL_ERROR();
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_UBO); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
@@ -1355,15 +1092,10 @@ void render()
 {
 	if (!pause)
 	{
-		update(glutGet(GLUT_ELAPSED_TIME), !shouldRegisterSimulation);
+		update(glutGet(GLUT_ELAPSED_TIME), false);
 	}
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); TEST_OPENGL_ERROR();
-
-	if (drawParticles)
-	{
-		drawParticlesVBO();
-	}
 
 	drawCubeVAO();
 
@@ -1385,7 +1117,6 @@ void render()
 
 void clear()
 {
-	glDeleteBuffers(1, &m_particleVboID); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squarePositionVboID); TEST_OPENGL_ERROR();
 	for (int i = 0; i < NUMBER_OF_SPHERE; i++)
 	{
@@ -1394,18 +1125,15 @@ void clear()
 	glDeleteBuffers(1, &m_squareNormalVBO); TEST_OPENGL_ERROR();
 	glDeleteBuffers(1, &m_squareVao); TEST_OPENGL_ERROR();
 
-	for (int i = 0; i < regularGrids.size(); i++)
+	/*for (int i = 0; i < regularGrids.size(); i++)
 	{
 		delete regularGrids[i];
-	}
+	}*/
 
 	for (int i = 0; i < spheres.size(); i++)
 	{
 		delete spheres[i];
 	}
-
-	delete octreeRoot;
-	delete fluid;
 }
 
 // Scene :
@@ -1595,7 +1323,7 @@ void computeRayTracedImage()
 	cellDepth.clear();
 	cellDepthForRayTracer.clear();
 	cellColorAndIntensity.clear();
-	UpdateCellVectors(octreeRoot, true, true);
+	updateCells();
 
 	//int w = 1024, h = 768, samps = 1; // # samples
 	int w = 1024, h = 768, samps = 1; // # samples
@@ -1671,13 +1399,6 @@ int main(int argc, char **argv) {
 	if (init(argc, argv) != 0)
 	{
 		return 1;
-	}
-
-
-	if (shouldRegisterSimulation)
-	{
-		std::ofstream ofs(SIMULATION_FILE_NAME, std::ios::out | std::ios::trunc); // clear contents
-		ofs.close();
 	}
 
 	in = std::ifstream(SIMULATION_FILE_NAME, std::ios_base::binary);
