@@ -61,7 +61,7 @@ glm::vec2 lastRotatingCursorPosition;
 static float initialTime;
 static float zeroTimeOfSimulation;
 
-int clamped_power_of_two_resolution;
+int clamped_power_of_two_resolution = 0;
 int power_of_two_resolution;
 
 void computeRayTracedImage();
@@ -806,7 +806,6 @@ void initScene()
 		regularGrids.push_back(new RegularGrid(resolution, glm::vec3(CUBE_SIZE)));
 	}*/
 
-	std::cout << clamped_power_of_two_resolution << std::endl;
 	blendingRadius.resize(clamped_power_of_two_resolution+1);
 
 	for (int i = 0; i < clamped_power_of_two_resolution + 1; i++)
@@ -854,13 +853,10 @@ bool readFile(std::ifstream &in)
 	std::cout << length << std::endl;
 	// allocate memory:
 	float * buffer = new float[length];
+	std::cout << sizeof(float) << std::endl;
+	std::cout << sizeof(int) << std::endl;
 
 	in.read((char *)buffer, sizeof(float)*length);
-
-	/*resolution[0] = *reinterpret_cast<int*>(&buffer[0]);
-	resolution[1] = *reinterpret_cast<int*>(&buffer[1]);
-	resolution[2] = *reinterpret_cast<int*>(&buffer[2]);
-	resolution[3] = *reinterpret_cast<int*>(&buffer[3]);*/
 
 	int maxSizeDimension = glm::max(resolution[0], glm::max(resolution[1], resolution[2]));
 	
@@ -878,9 +874,6 @@ bool readFile(std::ifstream &in)
 		power_of_two_resolution++;
 	}
 
-	std::cout << power_of_two_resolution << std::endl;
-	std::cout << clamped_power_of_two_resolution << std::endl;
-
 	float pressure;
 
 	for (int x = 0; x < resolution[0]; x++)
@@ -892,12 +885,11 @@ bool readFile(std::ifstream &in)
 			{
 				for (int f = 0; f < resolution[3]; f++)
 				{
-
 					pressure = buffer[4 + x * resolution[1] * 133 * resolution[3] + y * resolution[2] * resolution[3] + z * resolution[3] + f];
-					//pressures[0][0][0][f] += pressure;
+					pressures[0][0][0][f] += pressure;
 					for (int i = 1; i < 8; i++)
 					{
-						pressures[(int)(pow(2, i) + x / pow(2, 7 - i))][(int)(pow(2, i) + y / pow(2, 7 - i))][(int)(pow(2, i) + z / pow(2, 7 - i))][f] = 1.0;
+						pressures[(int)(pow(2, i) + x / pow(2, 7 - i))][(int)(pow(2, i) + y / pow(2, 7 - i))][(int)(pow(2, i) + z / pow(2, 7 - i))][f] += pressure;
 					}
 				}
 			}
@@ -906,7 +898,7 @@ bool readFile(std::ifstream &in)
 	std::cout << "\nFILE LOADED" << std::endl;
 
 	in.close();
-	delete buffer;
+	std::cout << clamped_power_of_two_resolution << std::endl;
 	return true;
 }
 
@@ -928,8 +920,9 @@ int init(int argc, char **argv)
 	glCullFace(GL_BACK); TEST_OPENGL_ERROR();
 	glEnable(GL_CULL_FACE); TEST_OPENGL_ERROR();
 	
+	std::cout << clamped_power_of_two_resolution << std::endl;
 	readFile(in);
-
+	std::cout << clamped_power_of_two_resolution << std::endl;
 	initScene();
 	initBuffers();
 	initShaders();
