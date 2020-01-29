@@ -21,16 +21,16 @@ in vec4 fNormal;
 in vec4 fPositionInWorld;
 
 // Arrays in a UBO must use a constant expression for their size.
-const int MY_ARRAY_SIZE = 73; // either 1, 9, 73 or 585
+const int MY_ARRAY_SIZE = 585; // either 1, 9, 73 or 585
 
 // The name of the block is used for finding the index location only
 layout (std140, binding = 0) uniform lightSourcesBlock {
-  LightSource myArray [MY_ARRAY_SIZE]; // This is the important name (in the shader).
+  vec4 myArray [MY_ARRAY_SIZE]; // This is the important name (in the shader).
   vec4 number_of_lights;
-  vec4 spheres [3];
-  vec4 number_of_spheres;
   vec4 blendingRadius [4];
   vec4 number_of_radius;
+  vec4 spheres[3];
+  vec4 number_of_spheres;
 };
 
 float computeDiffuseFromLight(vec3 lightPosition)
@@ -108,17 +108,21 @@ void main() {
 	bool didIntersectASphere = false;
 	for (int j = 0; j < number_of_spheres.x; j++)
 	{
-		didIntersectASphere = didIntersectASphere || intersect(myArray[i].position.xyz, fPositionInWorld.xyz, spheres[j].xyz, spheres[j].w);
+		didIntersectASphere = didIntersectASphere || intersect(myArray[i].xyz, fPositionInWorld.xyz, spheres[j].xyz, spheres[j].w);
+		//didIntersectASphere = didIntersectASphere || intersect(myArray[i].position.xyz, fPositionInWorld.xyz, spheres[j].xyz, spheres[j].w);
 	}
 	if (!didIntersectASphere)
 	{
-		vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
-		contributionFromLightI *= myArray[i].color_and_intensity.w;
-		contributionFromLightI *= blendFunction(length(fPositionInWorld.xyz-myArray[i].position.xyz), int(myArray[i].depth.x));
+		//vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
+		vec3 contributionFromLightI = myArray[i].xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i]).xyz));
+		//contributionFromLightI *= myArray[i].color_and_intensity.w;
+		contributionFromLightI *= myArray[i].w;
+		//contributionFromLightI *= blendFunction(length(fPositionInWorld.xyz-myArray[i].position.xyz), int(myArray[i].depth.x));
+		contributionFromLightI *= blendFunction(length(fPositionInWorld.xyz - myArray[i].xyz), int(myArray[i].x));
 		//contributionFromLightI *= 4.0;
 		totalColor += contributionFromLightI;
 	}
   }
 
-  output_color = albedo * vec4(totalColor, 1.0);
+  output_color = albedo * vec4(vec3(1.0), 1.0);
 }

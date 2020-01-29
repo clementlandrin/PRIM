@@ -49,7 +49,7 @@ bool pause = false;
 
 int frameNumber = 0;
 
-float pressures[227][255][227][20];
+float pressures[1579593][20];
 
 int resolution[] = { 100, 128, 100, 20 };
 
@@ -66,6 +66,7 @@ int power_of_two_resolution;
 
 void computeRayTracedImage();
 float blendFunction(float distance, int depth);
+void initShaders();
 
 struct Vec
 {
@@ -263,6 +264,50 @@ void mousePositionCallback(int x, int y)
 	}
 }
 
+void specialCallback(int key, int x, int y)
+{
+	switch (key)
+	{
+	case GLUT_KEY_UP:
+		std::cout << "Pressed key up : ";
+
+		if (depthToDisplay + 1 <= clamped_power_of_two_resolution)
+		{
+			depthToDisplay += 1;
+			std::cout << "Updating depth to display to " << depthToDisplay << std::endl;
+			glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+			ShaderProgram::set("depth_to_display", depthToDisplay, lightingProgramID); TEST_OPENGL_ERROR();
+			glUseProgram(0); TEST_OPENGL_ERROR();
+		}
+		else
+		{
+			std::cout << "Nothing happens" << std::endl;
+		}
+		break;
+	case GLUT_KEY_DOWN:
+		std::cout << "Pressed key down : ";
+
+		if (depthToDisplay - 1 >= -1)
+		{
+			depthToDisplay -= 1;
+			std::cout << "Updating depth to display to " << depthToDisplay << std::endl;
+			glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+			ShaderProgram::set("depth_to_display", depthToDisplay, lightingProgramID); TEST_OPENGL_ERROR();
+			glUseProgram(0); TEST_OPENGL_ERROR();
+		}
+		else
+		{
+			std::cout << "Nothing happens" << std::endl;
+		}
+		break;
+	case GLUT_KEY_F5:
+		std::cout << "Reload shaders" << std::endl;
+		initShaders();
+		break;
+	}
+
+}
+
 void keyboardCallback(unsigned char key, int x, int y)
 {
 	switch (key)
@@ -332,7 +377,12 @@ void keyboardCallback(unsigned char key, int x, int y)
 			std::cout << "Won't draw cell center" << std::endl;
 		}
 		break;
+	case GLUT_KEY_F5:
+		std::cout << "Reload shaders" << std::endl;
+		initShaders();
+		break;
 	}
+
 }
 
 glm::vec3 computeFireColor(int depth, float pressure)
@@ -457,7 +507,12 @@ void initUBO()
 {
 	glGenBuffers(1, &m_UBO); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, m_UBO); TEST_OPENGL_ERROR();
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(LightSource) * glm::min(cellPositions.size()/3, (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) + 3 * sizeof(glm::vec4) + sizeof(glm::vec4) * NUMBER_OF_SPHERE + sizeof(glm::vec4) * blendingRadius.size(), NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
+	int numberOfRealTimeCells = 0;
+	for (int i = 0; i < clamped_power_of_two_resolution; i++)
+	{
+		numberOfRealTimeCells += pow(8, i);
+	}
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(glm::vec4) * numberOfRealTimeCells + 3 * sizeof(glm::vec4) + sizeof(glm::vec4) * blendingRadius.size() + sizeof(glm::vec4) * NUMBER_OF_SPHERE, NULL, GL_DYNAMIC_DRAW); TEST_OPENGL_ERROR();
 	glBindBuffer(GL_UNIFORM_BUFFER, 0); TEST_OPENGL_ERROR();
 }
 
@@ -850,11 +905,9 @@ bool readFile(std::ifstream &in)
 	int length = in.tellg();
 	length /= sizeof(float);
 	in.seekg(0, std::ios_base::beg);
-	std::cout << length << std::endl;
+
 	// allocate memory:
 	float * buffer = new float[length];
-	std::cout << sizeof(float) << std::endl;
-	std::cout << sizeof(int) << std::endl;
 
 	in.read((char *)buffer, sizeof(float)*length);
 
@@ -886,10 +939,15 @@ bool readFile(std::ifstream &in)
 				for (int f = 0; f < resolution[3]; f++)
 				{
 					pressure = buffer[4 + x * resolution[1] * 133 * resolution[3] + y * resolution[2] * resolution[3] + z * resolution[3] + f];
-					pressures[0][0][0][f] += pressure;
+					pressures[0][f] += pressure;
+					int startingPowerIndex = 1;
 					for (int i = 1; i < 8; i++)
 					{
-						pressures[(int)(pow(2, i) + x / pow(2, 7 - i))][(int)(pow(2, i) + y / pow(2, 7 - i))][(int)(pow(2, i) + z / pow(2, 7 - i))][f] += pressure;
+						int xIndex = x / pow(2, 7 - i);
+						int yIndex = y / pow(2, 7 - i);
+						int zIndex = z / pow(2, 7 - i);
+						pressures[int(startingPowerIndex + xIndex * pow(8, i) + yIndex * pow(4, i) + zIndex * pow(2, i))][f] += pressure;
+						startingPowerIndex += pow(8, i);
 					}
 				}
 			}
@@ -898,7 +956,6 @@ bool readFile(std::ifstream &in)
 	std::cout << "\nFILE LOADED" << std::endl;
 
 	in.close();
-	std::cout << clamped_power_of_two_resolution << std::endl;
 	return true;
 }
 
@@ -911,6 +968,7 @@ int init(int argc, char **argv)
 	glutMouseFunc(&mouseButtonCallback);
 	glutMotionFunc(&mousePositionCallback);
 	glutKeyboardFunc(&keyboardCallback);
+	glutSpecialFunc(&specialCallback);
 	glPointSize(3.0);
 	if (glewInit() != GLEW_OK)
 	{
@@ -920,9 +978,7 @@ int init(int argc, char **argv)
 	glCullFace(GL_BACK); TEST_OPENGL_ERROR();
 	glEnable(GL_CULL_FACE); TEST_OPENGL_ERROR();
 	
-	std::cout << clamped_power_of_two_resolution << std::endl;
 	readFile(in);
-	std::cout << clamped_power_of_two_resolution << std::endl;
 	initScene();
 	initBuffers();
 	initShaders();
@@ -956,6 +1012,11 @@ void update(float currentTime, bool realTimeSimulation)
 	updateCells();
 }
 
+/*glm::vec3 computePositionFromIndex(int index[])
+{
+	int depth = 
+}*/
+
 void updateUBO()
 {
 	if (shouldRenderLighting)
@@ -977,6 +1038,19 @@ void updateUBO()
 		lightSources[0].depth = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 	}
 
+	glm::vec4 numberOfRealTimeCells[1] = { glm::vec4(0.0) };
+	for (int i = 0; i < clamped_power_of_two_resolution; i++)
+	{
+		numberOfRealTimeCells[0].x += pow(8, i);
+	}
+
+	std::vector<glm::vec4> cellPressure;
+	cellPressure.resize(numberOfRealTimeCells[0].x);
+	for (int i = 0; i < numberOfRealTimeCells[0].x; i++)
+	{
+		cellPressure[i] = glm::vec4(pressures[0][0], 0.0, 0.0, 0.0);
+	}
+
 	std::vector<glm::vec4> spherePositionAndRadius;
 	for (int i = 0; i < NUMBER_OF_SPHERE; i++)
 	{
@@ -988,14 +1062,15 @@ void updateUBO()
 
 	glBindBuffer(GL_UNIFORM_BUFFER, m_UBO); TEST_OPENGL_ERROR();
 	glm::vec4 actualNumberOfCells[1] = { glm::vec4(lightSources.size(), 0.0f, 0.0f, 0.0f) };
-	GLsizei sizeOfArray = glm::min(lightSources.size(), (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) * sizeof(LightSource);
+	GLsizei sizeOfArray = numberOfRealTimeCells[0].x * sizeof(glm::vec4);
 	GLsizei sizeBlendingRadiusArray = blendingRadius.size() * sizeof(glm::vec4);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray, sizeof(glm::vec4), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4), sizeOfSphereArray, &(spherePositionAndRadius[0])); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4) + sizeOfSphereArray, sizeof(glm::vec4), &(actualNumberOfSpheres)); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + 2 * sizeof(glm::vec4) + sizeOfSphereArray, sizeBlendingRadiusArray, &(blendingRadius[0])); TEST_OPENGL_ERROR();
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + 2 * sizeof(glm::vec4) + sizeOfSphereArray + sizeBlendingRadiusArray, sizeof(glm::vec4), &(numberOfRadius)); TEST_OPENGL_ERROR();
+	
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(cellPressure[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray, sizeof(glm::vec4), &(numberOfRealTimeCells)); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4), sizeBlendingRadiusArray, &(blendingRadius[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4) + sizeBlendingRadiusArray, sizeof(glm::vec4), &(numberOfRadius)); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + 2 * sizeof(glm::vec4) + sizeBlendingRadiusArray, sizeOfSphereArray, &(spherePositionAndRadius[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + 2 * sizeof(glm::vec4) + sizeBlendingRadiusArray + sizeOfSphereArray, sizeof(glm::vec4), &(actualNumberOfSpheres)); TEST_OPENGL_ERROR();
 
 	GLuint lightSourcesBlockIdx = glGetUniformBlockIndex(lightingProgramID, "lightSourcesBlock"); TEST_OPENGL_ERROR();
 	glUniformBlockBinding(lightingProgramID, lightSourcesBlockIdx, 0); TEST_OPENGL_ERROR();
