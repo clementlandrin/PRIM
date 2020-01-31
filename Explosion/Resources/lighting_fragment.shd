@@ -21,7 +21,7 @@ in vec4 fNormal;
 in vec4 fPositionInWorld;
 
 // Arrays in a UBO must use a constant expression for their size.
-const int MY_ARRAY_SIZE = 73; // either 1, 9, 73 or 585
+const int MY_ARRAY_SIZE = 584; // either 1, 9, 73 or 585
 
 // The name of the block is used for finding the index location only
 layout (std140, binding = 0) uniform lightSourcesBlock {
@@ -59,6 +59,35 @@ bool intersect(vec3 rayOrigin, vec3 pixelPosition, vec3 center, float radius)
     }
 }
 
+vec3 computeFireColor(float distance)
+{
+	vec3 color = vec3(1.0);
+
+	float radius[3] = { 1.0, 3.0, 10.0 };
+
+	if (distance < radius[0])
+	{
+		color.z = clamp((radius[0] - distance) / radius[0] , 0.0, 1.0);
+		color.x = 1.0;
+		color.y = 1.0;
+		return color;
+	}
+	else if (distance < radius[1])
+	{
+		color.y = clamp((radius[1] - distance) / (radius[1] - radius[0]), 0.0, 1.0);
+		color.x = 1.0;
+		color.z = 0.0;
+		return color;
+	}
+	else
+	{
+		color.y = 0.0;
+		color.z = 0.0;
+		color.x = clamp((radius[2] - distance) / (radius[2] - radius[1]), 0.0, 1.0);
+	}
+	return color;
+}
+
 float blendFunction(float distance, int depth)
 {
 	float factor = 1.0;
@@ -74,16 +103,16 @@ float blendFunction(float distance, int depth)
 		}
 	}
 
-	if (depth == 0 && distance <= blendingRadius[0].x)
+	if (depth == int(number_of_radius.x) - 1 && distance <= blendingRadius[depth].x)
 	{
 		return factor * 1.0;
 	}
-	else if (depth == int(number_of_radius.x) - 1 && distance >= blendingRadius[depth].x)
+	else if (depth == 0 && distance >= blendingRadius[depth].x)
 	{
 		return factor * 1.0;
 	}
 	
-	if (distance < blendingRadius[depth].x)
+	if (distance > blendingRadius[depth].x)
 	{
 		return factor * clamp((distance - blendingRadius[depth-1].x)/(blendingRadius[depth].x - blendingRadius[depth-1].x), 0.0, 1.0);
 	}
@@ -91,6 +120,17 @@ float blendFunction(float distance, int depth)
 	{
 		return factor * clamp((blendingRadius[depth+1].x - distance)/(blendingRadius[depth+1].x - blendingRadius[depth].x), 0.0, 1.0);
 	}
+
+	return 0.0;
+}
+
+float fallOfTerm(float distance)
+{
+	distance *= 2.0;
+	float constant = 1.0;
+	float linear = 3;
+	float quadratic = 3;
+	return 20.0f / (constant + linear * distance + quadratic * pow(distance, 2.0));
 }
 
 void main() {
@@ -105,18 +145,26 @@ void main() {
 		counter += int(pow(8, depth));
 		depth++;
 	}
-	bool didIntersectASphere = false;
-	for (int j = 0; j < number_of_spheres.x; j++)
+	if (myArray[i].color_and_intensity.w != 0.0)
 	{
-		didIntersectASphere = didIntersectASphere || intersect(myArray[i].position.xyz, fPositionInWorld.xyz, spheres[j].xyz, spheres[j].w);
-	}
-	if (!didIntersectASphere)
-	{
-		vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
-		contributionFromLightI *= myArray[i].color_and_intensity.w;
-		contributionFromLightI *= blendFunction(length(fPositionInWorld.xyz-myArray[i].position.xyz), int(myArray[i].depth.x));
-		//contributionFromLightI *= 4.0;
-		totalColor += contributionFromLightI;
+		bool didIntersectASphere = false;
+		for (int j = 0; j < number_of_spheres.x; j++)
+		{
+			didIntersectASphere = didIntersectASphere || intersect(myArray[i].position.xyz, fPositionInWorld.xyz, spheres[j].xyz, spheres[j].w);
+		}
+		if (!didIntersectASphere)
+		{
+			float distance = length(fPositionInWorld.xyz - myArray[i].position.xyz);
+			float blendResult = blendFunction(distance, int(myArray[i].depth.x));
+			if (blendResult != 0.0)
+			{
+				vec3 contributionFromLightI = myArray[i].color_and_intensity.xyz * vec3(computeDiffuseFromLight((model_view_matrix * myArray[i].position).xyz));
+				contributionFromLightI *= myArray[i].color_and_intensity.w;
+				contributionFromLightI *= blendResult;
+				contributionFromLightI *= fallOfTerm(distance);
+				totalColor += contributionFromLightI * computeFireColor(distance);
+			}
+		}
 	}
   }
 
