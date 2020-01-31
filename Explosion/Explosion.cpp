@@ -14,7 +14,7 @@
 #include <vector>
 #include <algorithm>
 
-#define SIMULATION_FILE_NAME "simulation_2.txt"
+#define SIMULATION_FILE_NAME "simulation_1.txt"
 
 #include "Particle.hpp"
 #include "Fluid.hpp"
@@ -33,13 +33,15 @@
 
 #define VISCOSITY 10000.0f
 #define DENSITY 1.0f
-#define PARTICLE_NUMBER 15000
-#define FLUID_PROPORTION_IN_CUBE 0.1f
+#define PARTICLE_NUMBER 5000//15000
+#define FLUID_PROPORTION_IN_CUBE 0.2f
 #define CUBE_SIZE 0.75f
-#define RESOLUTION 4
+#define RESOLUTION 8
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 
 #define NUMBER_OF_SPHERE 3
+
+float heightOffset = 0.0f;
 
 int depthToDisplay = -1;
 
@@ -69,6 +71,7 @@ int power_of_two_resolution;
 
 void computeRayTracedImage();
 float blendFunction(float distance, int depth);
+void createSquare();
 
 struct Vec
 {
@@ -362,6 +365,17 @@ void keyboardCallback(unsigned char key, int x, int y)
 			std::cout << "Won't draw particles" << std::endl;
 		}
 		break;
+	case 'u':
+		std::cout << "Bottom face of the cube moves up";
+		
+		heightOffset += 0.02f;
+		createSquare();
+		break;
+	case 'd':
+		std::cout << "Top face of the cube moves down";
+		heightOffset -= 0.02f;
+		createSquare();
+		break;
 	}
 }
 
@@ -401,29 +415,51 @@ void initParticleVbo()
 
 glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
 {
-	float proportion = numberOfParticlesInCell / (PARTICLE_NUMBER / pow(8, depth));
+	float proportion = (float)numberOfParticlesInCell / (float)PARTICLE_NUMBER * pow(8.0, depth) / 2.0f;
 	glm::vec3 color = glm::vec3(1.0f);
-	if (proportion > 4.0f / 5.0f)
+
+	//return glm::vec3(1.0f);
+	/*if (proportion > 2.0f / 3.0f)
 	{
-		//color.b = (proportion - 3.0f / 4.0f) * 4.0f / 3.0f;
+		color.z = glm::clamp((proportion - 2.0f / 3.0f) * 3.0f, 0.0f, 1.0f);
+		color.x = 1.0f;
+		color.y = 1.0f;
+		return color;
 	}
-	else if (proportion > 3.0f / 5.0f)
+	else if (proportion > 1.0f / 3.0f)
 	{
-		color.b = (proportion - 3.0f / 5.0f) * 5.0f / 3.0f;
-	}
-	else if (proportion > 2.0f / 5.0f)
-	{
-		color.g = (proportion - 2.0f / 5.0f) * 5.0f / 2.0f;
-	}
-	else if (proportion > 1.0f / 5.0f)
-	{
-		color.r = (proportion - 1.0f / 5.0f) * 5.0f / 1.0f;
+		color.y = glm::clamp((proportion - 1.0f / 3.0f) * 3.0f, 0.0f, 1.0f);
+		color.x = 1.0f;
+		color.z = 0.0f;
+		return color;
 	}
 	else
 	{
-		color = glm::vec3(0.0f);
+		color.y = 0.0f;
+		color.z = 0.0f;
+		color.x = glm::clamp(proportion * 3.0f, 0.0f, 1.0f);
+	}*/
+	if (proportion > 4.0f / 6.0f)
+	{
+		color.z = glm::clamp((proportion - 4.0f / 6.0f) * 6.0f / 2.0f, 0.0f, 1.0f);
+		color.x = 1.0f;
+		color.y = 1.0f;
+		return color;
 	}
-	return glm::vec3(1.0f);
+	else if (proportion > 2.0f / 6.0f)
+	{
+		color.y = glm::clamp((proportion - 2.0f / 6.0f) * 6.0f / 2.0f, 0.0f, 1.0f);
+		color.x = 1.0f;
+		color.z = 0.0f;
+		return color;
+	}
+	else
+	{
+		color.y = 0.0f;
+		color.z = 0.0f;
+		color.x = glm::clamp(proportion * 6.0f / 2.0f, 0.0f, 1.0f);
+		return color;
+	}
 }
 
 void addCellToCellPositionVector(OctreeNode* octreeNode, bool shouldAddToRayTracer, bool shouldAddCellToVector = false)
@@ -606,7 +642,7 @@ void initBuffers()
 void generateParticles(int particleNumber)
 {
 	float fluidInitialSpace = FLUID_PROPORTION_IN_CUBE * CUBE_SIZE;
-	fluid->GenerateParticlesUniformly(particleNumber, glm::vec3(0.0f, -0.5f + fluidInitialSpace * 0.5f, 0.0f), fluidInitialSpace, fluidInitialSpace, fluidInitialSpace, 0.1f);
+	fluid->GenerateParticlesUniformly(particleNumber, glm::vec3(0.0f, 0.0f, 0.0f), fluidInitialSpace, fluidInitialSpace, fluidInitialSpace, 0.1f);
 }
 
 void clearParticles()
@@ -623,27 +659,27 @@ void initFluid()
 void bottomFace(int offset, float size)
 {
 	squarePositions[0 + offset] = 1.0f * size;
-	squarePositions[1 + offset] = -1.0f * size;
+	squarePositions[1 + offset] = heightOffset * size;
 	squarePositions[2 + offset] = -1.0f * size;
 
 	squarePositions[3 + offset] = -1.0f * size;
-	squarePositions[4 + offset] = -1.0f * size;
+	squarePositions[4 + offset] = heightOffset * size;
 	squarePositions[5 + offset] = -1.0f * size;
 
 	squarePositions[6 + offset] = -1.0f * size;
-	squarePositions[7 + offset] = -1.0f * size;
+	squarePositions[7 + offset] = heightOffset * size;
 	squarePositions[8 + offset] = 1.0f * size;
 
 	squarePositions[9 + offset] = 1.0f * size;
-	squarePositions[10 + offset] = -1.0f * size;
+	squarePositions[10 + offset] = heightOffset * size;
 	squarePositions[11 + offset] = -1.0f * size;
 
 	squarePositions[12 + offset] = -1.0f * size;
-	squarePositions[13 + offset] = -1.0f * size;
+	squarePositions[13 + offset] = heightOffset * size;
 	squarePositions[14 + offset] = 1.0f * size;
 
 	squarePositions[15 + offset] = 1.0f * size;
-	squarePositions[16 + offset] = -1.0f * size;
+	squarePositions[16 + offset] = heightOffset * size;
 	squarePositions[17 + offset] = 1.0f * size;
 
 	for (int i = 0; i < 6; i++)
@@ -665,11 +701,11 @@ void leftFace(int offset, float size)
 	squarePositions[5 + offset] = 1.0f * size;
 
 	squarePositions[6 + offset] = -1.0f * size;
-	squarePositions[7 + offset] = -1.0f * size;
+	squarePositions[7 + offset] = heightOffset * size;
 	squarePositions[8 + offset] = -1.0f * size;
 
 	squarePositions[9 + offset] = -1.0f * size;
-	squarePositions[10 + offset] = -1.0f * size;
+	squarePositions[10 + offset] = heightOffset * size;
 	squarePositions[11 + offset] = -1.0f * size;
 
 	squarePositions[12 + offset] = -1.0f * size;
@@ -677,7 +713,7 @@ void leftFace(int offset, float size)
 	squarePositions[14 + offset] = 1.0f * size;
 
 	squarePositions[15 + offset] = -1.0f * size;
-	squarePositions[16 + offset] = -1.0f * size;
+	squarePositions[16 + offset] = heightOffset * size;
 	squarePositions[17 + offset] = 1.0f * size;
 
 	for (int i = 0; i < 6; i++)
@@ -695,7 +731,7 @@ void rightFace(int offset, float size)
 	squarePositions[2 + offset] = -1.0f * size;
 
 	squarePositions[3 + offset] = 1.0f * size;
-	squarePositions[4 + offset] = -1.0f * size;
+	squarePositions[4 + offset] = heightOffset * size;
 	squarePositions[5 + offset] = -1.0f * size;
 
 	squarePositions[6 + offset] = 1.0f * size;
@@ -707,11 +743,11 @@ void rightFace(int offset, float size)
 	squarePositions[11 + offset] = 1.0f * size;
 
 	squarePositions[12 + offset] = 1.0f * size;
-	squarePositions[13 + offset] = -1.0f * size;
+	squarePositions[13 + offset] = heightOffset * size;
 	squarePositions[14 + offset] = -1.0f * size;
 
 	squarePositions[15 + offset] = 1.0f * size;
-	squarePositions[16 + offset] = -1.0f * size;
+	squarePositions[16 + offset] = heightOffset * size;
 	squarePositions[17 + offset] = 1.0f * size;
 
 	for (int i = 0; i < 6; i++)
@@ -763,11 +799,11 @@ void backFace(int offset, float size)
 	squarePositions[2 + offset] = -1.0f * size;
 
 	squarePositions[3 + offset] = -1.0f * size;
-	squarePositions[4 + offset] = -1.0f * size;
+	squarePositions[4 + offset] = heightOffset * size;
 	squarePositions[5 + offset] = -1.0f * size;
 
 	squarePositions[6 + offset] = 1.0f * size;
-	squarePositions[7 + offset] = -1.0f * size;
+	squarePositions[7 + offset] = heightOffset * size;
 	squarePositions[8 + offset] = -1.0f * size;
 
 	squarePositions[9 + offset] = -1.0f * size;
@@ -775,7 +811,7 @@ void backFace(int offset, float size)
 	squarePositions[11 + offset] = -1.0f * size;
 
 	squarePositions[12 + offset] = 1.0f * size;
-	squarePositions[13 + offset] = -1.0f * size;
+	squarePositions[13 + offset] = heightOffset * size;
 	squarePositions[14 + offset] = -1.0f * size;
 
 	squarePositions[15 + offset] = 1.0f * size;
@@ -793,11 +829,11 @@ void backFace(int offset, float size)
 void frontFace(int offset, float size)
 {
 	squarePositions[0 + offset] = 1.0f * size;
-	squarePositions[1 + offset] = -1.0f * size;
+	squarePositions[1 + offset] = heightOffset * size;
 	squarePositions[2 + offset] = 1.0f * size;
 
 	squarePositions[3 + offset] = -1.0f * size;
-	squarePositions[4 + offset] = -1.0f * size;
+	squarePositions[4 + offset] = heightOffset * size;
 	squarePositions[5 + offset] = 1.0f * size;
 
 	squarePositions[6 + offset] = 1.0f * size;
@@ -809,7 +845,7 @@ void frontFace(int offset, float size)
 	squarePositions[11 + offset] = 1.0f * size;
 
 	squarePositions[12 + offset] = -1.0f * size;
-	squarePositions[13 + offset] = -1.0f * size;
+	squarePositions[13 + offset] = heightOffset * size;
 	squarePositions[14 + offset] = 1.0f * size;
 
 	squarePositions[15 + offset] = -1.0f * size;
@@ -827,6 +863,8 @@ void frontFace(int offset, float size)
 void createSquare()
 {
 	int vertexPerFace = 2 * 3 * 3;
+	squarePositions.clear();
+	squareNormals.clear();
 	squarePositions.resize(6 * vertexPerFace);
 	squareNormals.resize(6 * vertexPerFace);
 
@@ -962,24 +1000,24 @@ void initScene()
 	}
 	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
 
-	blendingRadius.resize(clamped_power_of_two_resolution+1);
+	blendingRadius.resize(clamped_power_of_two_resolution + 1);
 
 	for (int i = 0; i < clamped_power_of_two_resolution + 1; i++)
 	{
-		blendingRadius[i] = glm::vec4((float)(i+1)/(float)(clamped_power_of_two_resolution+2), 0.0f, 0.0f, 0.0f);
+		blendingRadius[i] = glm::vec4(1 - (float)(i+1)/(float)(clamped_power_of_two_resolution+2), 0.0f, 0.0f, 0.0f);
 		std::cout << "Blending radius " << i << " : " << blendingRadius[i].x << std::endl;
 	}
 	
-	blendingRadius[0] = glm::vec4(0.2f, 0.0f, 0.0f, 0.0f);
+	blendingRadius[0] = glm::vec4(1.2f, 0.0f, 0.0f, 0.0f);
 	if (blendingRadius.size() > 1)
 	{
-		blendingRadius[1] = glm::vec4(0.5f, 0.0f, 0.0f, 0.0f);
+		blendingRadius[1] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
 		if (blendingRadius.size() > 2)
 		{
-			blendingRadius[2] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
+			blendingRadius[2] = glm::vec4(0.6f, 0.0f, 0.0f, 0.0f);
 			if (blendingRadius.size() > 3)
 			{
-				blendingRadius[3] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+				blendingRadius[3] = glm::vec4(0.3f, 0.0f, 0.0f, 0.0f);
 			}
 		}
 	}
@@ -1041,6 +1079,7 @@ void writeFloat(std::ofstream& file, float val) {
 
 void writeFrameInFile(std::ofstream &out)
 {
+	std::cout << "writeFrameInFile " << fluid->GetParticles()[0]->GetPosition().x << std::endl;
 	writeInt(out, fluid->GetParticles().size());
 	for (int i = 0; i < fluid->GetParticles().size(); i++)
 	{
@@ -1050,8 +1089,31 @@ void writeFrameInFile(std::ofstream &out)
 	}
 }
 
+void skipFrameInFile(std::ifstream &in)
+{
+	frameNumber++;
+	int numberOfParticles;
+	glm::vec3 position;
+
+	in.read((char *)&numberOfParticles, sizeof(int));
+	if (numberOfParticles == -1)
+	{
+		in.close();
+		in.open(SIMULATION_FILE_NAME, std::ios_base::binary);
+	}
+	else if (numberOfParticles <= 0)
+	{
+		std::cout << "Read " << numberOfParticles << " particles from file" << std::endl;
+	}
+	else
+	{
+		in.seekg(numberOfParticles * sizeof(float) * 3, std::ios::cur);
+	}
+}
+
 bool readFrameInFile(std::ifstream &in)
 {
+	frameNumber++;
 	int numberOfParticles;
 	glm::vec3 position;
 	
@@ -1101,7 +1163,7 @@ void update(float currentTime, bool realTimeSimulation)
 	}
 	else
 	{
-		timeFactor = 0.03f;
+		timeFactor = 0.01f;
 	}
 
 	if (shouldPlayRegisteredSimulation)
@@ -1111,6 +1173,10 @@ void update(float currentTime, bool realTimeSimulation)
 
 		if (in.good())
 		{
+			while (frameNumber % 10 != 0)
+			{
+				skipFrameInFile(in);
+			}
 			if (!readFrameInFile(in))
 			{
 				in.close();
@@ -1130,7 +1196,7 @@ void update(float currentTime, bool realTimeSimulation)
 		cellDepth.clear();
 		cellPositions.clear();
 		UpdateCellVectors(octreeRoot, false, true);
-
+		
 		for (int i = 0; i < regularGrids.size(); i++)
 		{
 			regularGrids[i]->ResizeGrid(currentSizeOfGrid);
@@ -1139,9 +1205,9 @@ void update(float currentTime, bool realTimeSimulation)
 	else
 	{
 		glm::vec3 maxSpeed = regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
-		/*currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor, 2.0f * CUBE_SIZE);
+		currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor, 2.0f * CUBE_SIZE);
 		currentSizeOfGrid[1] = glm::min(currentSizeOfGrid[1] + maxSpeed[1] * timeFactor, 2.0f * CUBE_SIZE);
-		currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor, 2.0f * CUBE_SIZE);*/
+		currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor, 2.0f * CUBE_SIZE);
 
 		fluid->UpdateParticlePositions(timeFactor * CUBE_SIZE, CUBE_SIZE);
 		if (shouldGenerateNewParticlesEachFrame && fluid->GetParticles().size() + PARTICLE_NUMBER * 0.01 < 10 * PARTICLE_NUMBER)
@@ -1257,10 +1323,10 @@ void updateUBO()
 	glm::vec4 numberOfRadius[1] = { glm::vec4(blendingRadius.size(), 0.0f, 0.0f, 0.0f) };
 
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
-	glm::vec4 actualNumberOfCells[1] = { glm::vec4(lightSources.size(), 0.0f, 0.0f, 0.0f) };
-	GLsizei sizeOfArray = glm::min(lightSources.size(), (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) * sizeof(LightSource);
+	glm::vec4 actualNumberOfCells[1] = { glm::vec4(lightSources.size() - 1, 0.0f, 0.0f, 0.0f) };
+	GLsizei sizeOfArray = glm::min(lightSources.size() - 1, (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) * sizeof(LightSource);
 	GLsizei sizeBlendingRadiusArray = blendingRadius.size() * sizeof(glm::vec4);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[1])); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray, sizeof(glm::vec4), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4), sizeOfSphereArray, &(spherePositionAndRadius[0])); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4) + sizeOfSphereArray, sizeof(glm::vec4), &(actualNumberOfSpheres)); TEST_OPENGL_ERROR();
@@ -1423,21 +1489,47 @@ inline double clamp(double x, double min, double max)
 	return x;
 }
 
-inline bool intersectScene(const Ray &r, double &t, int &id, bool intersectWithEmissive = false)
+float modifyRadiance(float &radiance, float intensity)
+{
+	if (intensity > 0.25f && intensity < 0.5f)
+	{
+		return radiance * 4.0f * (0.5f - intensity);
+	}
+	else
+	{
+		return radiance + 2.0f * (intensity - 0.5f);
+	}
+}
+
+inline bool intersectScene(const Ray &r, double &t, int &id, bool intersectWithEmissive = false, int lightID = -1)
 {
 	double d, inf = t = 1e20;
 	for (int i = 0; i < spheres.size(); ++i)
 	{
-		if (intersectWithEmissive || spheres[i]->refl != EMMISSIVE)
+		if (intersectWithEmissive)
 		{
 			if (spheres[i]->refl == EMMISSIVE)
 			{
-				if (blendFunction(Vec(r.o - spheres[i]->p).norm(), spheres[i]->depth) > 0.0)
+				if (lightID != -1 && i == lightID)
 				{
-					if ((d = spheres[i]->intersect(r)) && d < t)
+					if (blendFunction(Vec(r.o - spheres[i]->p).norm(), spheres[i]->depth) > 0.0)
 					{
-						t = d;
-						id = i;
+						if ((d = spheres[i]->intersect(r)) && d < t)
+						{
+							t = d;
+							id = i;
+						}
+					}
+				}
+				else if (lightID == -1)
+				{
+					if (blendFunction(Vec(r.o - spheres[i]->p).norm(), spheres[i]->depth) > 0.0)
+					{
+						if ((d = spheres[i]->intersect(r)) && d < t)
+						{
+							t = d;
+							id = i;
+						}
 					}
 				}
 			}
@@ -1449,7 +1541,21 @@ inline bool intersectScene(const Ray &r, double &t, int &id, bool intersectWithE
 					id = i;
 				}
 			}
-
+		}
+		else if (spheres[i]->refl != EMMISSIVE)
+		{
+			if ((d = spheres[i]->intersect(r)) && d < t)
+			{
+				t = d;
+				id = i;
+			}
+		}
+		else
+		{
+			/*if ((d = spheres[i]->intersect(r)) && d < t)
+			{
+				modifyRadiance(&rad, spheres[i]->e.norm());
+			}*/
 		}
 	}
 	return t < inf;
@@ -1501,7 +1607,7 @@ Vec radiance(const Ray &r, int depth)
 	if (n.dot(r.d) > 0.0)
 		n = -1.0 * n;
 
-	if (++depth > 5)
+	if (++depth > 1)
 		return Vec(); // we limit the number of rebounds in the scene
 
 	if (obj.refl == EMMISSIVE)
@@ -1515,18 +1621,21 @@ Vec radiance(const Ray &r, int depth)
 		for (unsigned int lightIt = 0; lightIt < lights.size(); ++lightIt)
 		{
 			const Sphere &light = *spheres[lights[lightIt]];
-
-			// TODO
-			const Vec dirToLight = (light.randomSample() - x).normalize();
-			const Ray &toLight = Ray(x + 0.0001 * dirToLight, dirToLight);
-			int idTemp;
-			double tTemp;
-			if (intersectScene(toLight, tTemp, idTemp, true))
+			const Vec Li = light.e;
+			if (Li.x != 0.0 && Li.y != 0.0 && Li.z != 0.0)
 			{
-				if (idTemp == lights[lightIt])
+				// TODO
+				const Vec dirToLight = (light.randomSample() - x).normalize();
+				const Ray &toLight = Ray(x + 0.0001 * dirToLight, dirToLight);
+				int idTemp;
+				double tTemp;
+				if (intersectScene(toLight, tTemp, idTemp, true, lights[lightIt]))
 				{
-					const Vec Li = light.e;
-					rad = rad + Li.mult(obj.c) * brdf(toLight.d, n, -1.0 * r.d) * (n.dot(toLight.d)) * blendFunction(Vec(toLight.o - light.p).norm(), light.depth);
+					if (idTemp == lights[lightIt])
+					{
+
+						rad = rad + Li.mult(obj.c) * brdf(toLight.d, n, -1.0 * r.d) * (n.dot(toLight.d)) * blendFunction(Vec(toLight.o - light.p).norm(), light.depth);
+					}
 				}
 			}
 		}
@@ -1566,25 +1675,24 @@ Vec radiance(const Ray &r, int depth)
 
 float blendFunction(float distance, int depth)
 {
-	float factor = 1.0;
-
-	if (depth == 0 && distance <= blendingRadius[depth].x)
+	if (depth == blendingRadius.size() - 1 && distance <= blendingRadius[depth].x)
 	{
-		return factor * 1.0;
+		return 1.0;
 	}
-	else if (depth == blendingRadius.size() - 1 && distance >= blendingRadius[depth].x)
+	else if (depth == 0 && distance >= blendingRadius[depth].x)
 	{
-		return factor * 1.0;
+		return 1.0;
 	}
 
-	if (distance < blendingRadius[depth].x)
+	if (distance > blendingRadius[depth].x)
 	{
-		return factor * clamp((distance - blendingRadius[depth - 1].x) / (blendingRadius[depth].x - blendingRadius[depth - 1].x), 0.0, 1.0);
+		return clamp((distance - blendingRadius[depth - 1].x) / (blendingRadius[depth].x - blendingRadius[depth - 1].x), 0.0, 1.0);
 	}
 	else
 	{
-		return factor * clamp((blendingRadius[depth + 1].x - distance) / (blendingRadius[depth + 1].x - blendingRadius[depth].x), 0.0, 1.0);
+		return clamp((blendingRadius[depth + 1].x - distance) / (blendingRadius[depth + 1].x - blendingRadius[depth].x), 0.0, 1.0);
 	}
+	return 0.0;
 }
 
 void computeRayTracedImage()
@@ -1598,7 +1706,7 @@ void computeRayTracedImage()
 	UpdateCellVectors(octreeRoot, true, true);
 
 	//int w = 1024, h = 768, samps = 1; // # samples
-	int w = 1024, h = 768, samps = 1; // # samples
+	int w = 512, h = 384, samps = 1; // # samples
 
 	Ray cam(Vec(-0.12, -0.0, 4.0), Vec(0, 0, -1).normalize());   // camera center and direction
 	Vec cx = Vec(w * .5 / h), cy = (cx.cross(cam.d)).normalize() * .5, *pixelsColor = new Vec[w * h];
@@ -1626,7 +1734,7 @@ void computeRayTracedImage()
 
 	for (int i = 0; i < lightSources.size(); i++)
 	{
-		spheres.push_back(new Sphere(0.01,
+		spheres.push_back(new Sphere(CUBE_SIZE / pow(2, lightSources[i].depth.x),
 			Vec(lightSources[i].position.x, lightSources[i].position.y, lightSources[i].position.z),
 			1.0 / cellPositionsForRayTracer.size() * 9.0 * Vec(lightSources[i].color_and_intensity.x, lightSources[i].color_and_intensity.y, lightSources[i].color_and_intensity.z),
 			Vec(lightSources[i].color_and_intensity.x, lightSources[i].color_and_intensity.y, lightSources[i].color_and_intensity.z), EMMISSIVE, lightSources[i].depth.x));
