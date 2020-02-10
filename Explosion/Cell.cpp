@@ -241,6 +241,7 @@ void Cell::ComputeGradientAndVGradV()
 	{
 		m_Gradient = glm::vec3(0.0f);
 		m_VGradv = glm::vec3(0.0f);
+		m_PressureGradient = glm::vec3(0.0f);
 		return;
 	}
 
@@ -258,28 +259,41 @@ void Cell::ComputeGradientAndVGradV()
 	glm::vec3 speed_left_cell = glm::vec3(0.0);
 	glm::vec3 speed_right_cell = glm::vec3(0.0);
 
+	int density_front_cell = 0;
+	int density_back_cell = 0;
+	int density_top_cell = 0;
+	int density_bottom_cell = 0;
+	int density_left_cell = 0;
+	int density_right_cell = 0;
+
 	if (front_cell)
 	{
+		density_front_cell = front_cell->GetParticles().size();
 		speed_front_cell = front_cell->GetSpeed();
 	}
 	if (back_cell)
 	{
+		density_back_cell = back_cell->GetParticles().size();
 		speed_back_cell = back_cell->GetSpeed();
 	}
 	if (top_cell)
 	{
+		density_top_cell = top_cell->GetParticles().size();
 		speed_top_cell = top_cell->GetSpeed();
 	}
 	if (bottom_cell)
 	{
+		density_bottom_cell = bottom_cell->GetParticles().size();
 		speed_bottom_cell = bottom_cell->GetSpeed();
 	}
 	if (left_cell)
 	{
+		density_left_cell = left_cell->GetParticles().size();
 		speed_left_cell = left_cell->GetSpeed();
 	}
 	if (right_cell)
 	{
+		density_right_cell = right_cell->GetParticles().size();
 		speed_right_cell = right_cell->GetSpeed();
 	}
 
@@ -287,7 +301,13 @@ void Cell::ComputeGradientAndVGradV()
 	glm::vec3 onY = (speed_top_cell - speed_bottom_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
 	glm::vec3 onZ = (speed_back_cell - speed_front_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
 
+	float densityOnX = (density_right_cell - density_left_cell) * 0.5f * (float)m_RegularGrid->GetResolution();
+	float densityOnY = (density_top_cell - density_bottom_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
+	float densityOnZ = (density_back_cell - density_front_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
+
 	m_Gradient = glm::vec3(onX.x, onY.y, onZ.z);
+
+	m_PressureGradient = glm::vec3(densityOnX, densityOnY, densityOnZ);
 
 	m_VGradv = glm::vec3(
 		m_Speed.x * onX.x + m_Speed.y * onY.x + m_Speed.z * onZ.x,
@@ -356,6 +376,7 @@ void Cell::PushNavierStokesParameters()
 		m_Particles[i]->SetGradient(m_Gradient);
 		m_Particles[i]->SetLaplacian(m_Laplacian);
 		m_Particles[i]->SetVGradV(m_VGradv);
+		m_Particles[i]->SetPressureGradient(m_PressureGradient);
 	}
 }
 
@@ -364,4 +385,9 @@ void Cell::ResetNavierStokesParameters()
 	m_Gradient = glm::vec3(0.0);
 	m_Laplacian = glm::vec3(0.0);
 	m_VGradv = glm::vec3(0.0);
+	m_PressureGradient = glm::vec3(0.0);
 }
+
+const glm::vec3 Particle::GetLaplacian() { return m_Laplacian; }
+const glm::vec3 Particle::GetVGradV() { return m_VGradV; }
+const glm::vec3 Particle::GetPressureGradient() { return m_PressureGradient; }

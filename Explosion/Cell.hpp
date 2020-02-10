@@ -37,6 +37,10 @@ public:
 	const glm::vec3 GetSpeed();
 	const glm::vec3 GetGradient();
 
+	const glm::vec3 GetLaplacian();
+	const glm::vec3 GetVGradV();
+	const glm::vec3 GetPressureGradient();
+
 	void SetParticles(std::vector<Particle*> particles);
 	void SetPosition(glm::vec3 position);
 	void SetCellWidth(float width);
@@ -65,6 +69,7 @@ private:
 	glm::vec3 m_Gradient;
 	glm::vec3 m_Laplacian;
 	glm::vec3 m_VGradv;
+	glm::vec3 m_PressureGradient;
 };
 
 #endif /* CELL_HPP */

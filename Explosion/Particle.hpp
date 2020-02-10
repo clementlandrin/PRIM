@@ -20,12 +20,14 @@ public:
   const glm::vec3 GetGradient();
   const glm::vec3 GetLaplacian();
   const glm::vec3 GetVGradV();
+  const glm::vec3 GetPressureGradient();
 
   void SetPosition(glm::vec3 position);
   void SetSpeed(glm::vec3 speed);
   void SetGradient(glm::vec3 new_gradient);
   void SetLaplacian(glm::vec3 new_laplacian);
   void SetVGradV(glm::vec3 new_vgradv);
+  void SetPressureGradient(glm::vec3 new_pressure_gradient);
   void SetEnergy(float energy);
   void AddCell(Cell* cell);
 private:
@@ -36,6 +38,7 @@ private:
   glm::vec3 m_Gradient = glm::vec3(0.0);
   glm::vec3 m_Laplacian = glm::vec3(0.0);
   glm::vec3 m_VGradV = glm::vec3(0.0);
+  glm::vec3 m_PressureGradient = glm::vec3(0.0);
 };
 
 #endif /* PARTICLE_HPP */

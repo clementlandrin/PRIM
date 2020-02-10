@@ -26,6 +26,7 @@ public:
 
   void UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBounds = false);
   glm::vec3 SpeedVariationByNavierStokes(Particle* particle);
+  glm::vec3 SpeedVariationByNavierStokesByCell(Cell* cell);
 
   static bool PositionIsInCube(glm::vec3 position, float cubeSize);
 

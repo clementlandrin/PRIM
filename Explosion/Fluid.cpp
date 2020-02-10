@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <ctime>
 #include "OctreeNode.hpp"
+#include "Cell.hpp"
 
 Fluid::~Fluid()
 {
@@ -41,7 +42,7 @@ void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, flo
 	position = glm::normalize(position);
 	position = position * length;
 	initialSpeed = glm::normalize(position);
-	initialSpeed.y = 5.0f;
+	initialSpeed.y = 50.0f;
 	initialSpeed = initialSpeed * speedFactor;
 
 	position = position * glm::vec3(width*0.5, height*0.5, depth*0.5);
@@ -82,8 +83,8 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBound
 	}
 	else if (!bounceOnBounds)
 	{
-	  delete m_Particles[i];
-	  m_Particles.erase(m_Particles.begin() + i);
+	 /* delete m_Particles[i];
+	  m_Particles.erase(m_Particles.begin() + i);*/
 	}
 	else
 	{
@@ -101,7 +102,13 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBound
 
 glm::vec3 Fluid::SpeedVariationByNavierStokes(Particle* particle)
 {
-	return (m_Viscosity * particle->GetLaplacian() - particle->GetVGradV() + 0.3f * glm::vec3(0.0f, -9.81f, 0.0f))/m_Viscosity;
+	return (glm::vec3(0.0f, -9.81f, 0.0f) + GetViscosity() * particle->GetLaplacian() - 1.0f * particle->GetPressureGradient() - 1.0f * particle->GetVGradV()) / GetDensity();
+	//return (m_Viscosity * particle->GetLaplacian() - particle->GetVGradV() + 0.3f * glm::vec3(0.0f, -9.81f, 0.0f))/m_Viscosity - 0.01f * particle->GetPressureGradient();
+}
+
+glm::vec3 Fluid::SpeedVariationByNavierStokesByCell(Cell* cell)
+{
+	return (glm::vec3(0.0f, -9.81f, 0.0f) + GetViscosity() * cell->GetLaplacian() - 1.0f * cell->GetPressureGradient() - 1.0f * cell->GetVGradV()) / GetDensity();
 }
 
 const float Fluid::GetViscosity() { return m_Viscosity; }

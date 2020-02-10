@@ -14,7 +14,7 @@
 #include <vector>
 #include <algorithm>
 
-#define SIMULATION_FILE_NAME "simulation_1.txt"
+#define SIMULATION_FILE_NAME "simulation_4.txt"
 
 #include "Particle.hpp"
 #include "Fluid.hpp"
@@ -31,15 +31,15 @@
 
 #define REAL_TIME_LIGHT_MAXIMUM_NUMBER 585
 
-#define VISCOSITY 10000.0f
-#define DENSITY 1.0f
-#define PARTICLE_NUMBER 5000//15000
-#define FLUID_PROPORTION_IN_CUBE 0.2f
+#define VISCOSITY 0.1f
+#define DENSITY 1.0f // Stands for inertie
+#define PARTICLE_NUMBER 1000//15000
+#define FLUID_PROPORTION_IN_CUBE 0.05f
 #define CUBE_SIZE 0.75f
-#define RESOLUTION 8
+#define RESOLUTION 16
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 
-#define NUMBER_OF_SPHERE 3
+#define NUMBER_OF_SPHERE 2
 
 float heightOffset = 0.0f;
 
@@ -57,8 +57,10 @@ int frameNumber = 0;
 
 bool shouldGenerateNewParticlesEachFrame = false;
 bool shouldRenderLighting = true;
-bool shouldRegisterSimulation = false;
-bool shouldPlayRegisteredSimulation = true;
+bool shouldRegisterSimulation = true;
+bool shouldPlayRegisteredSimulation = false;
+bool shouldColorLightingWithDistance = true;
+bool shouldColorFire = true;
 
 bool isRotating = false;
 glm::vec2 lastRotatingCursorPosition;
@@ -141,7 +143,6 @@ struct Sphere
 
 	double intersect(const Ray &r) const
 	{ // returns distance, 0 if nohit
-		// TODO
 		Vec oc = r.o - p;
 		double sa = 1.0;
 		double sb = 2.0 * oc.dot(r.d);
@@ -366,15 +367,42 @@ void keyboardCallback(unsigned char key, int x, int y)
 		}
 		break;
 	case 'u':
-		std::cout << "Bottom face of the cube moves up";
+		std::cout << "Bottom face of the cube moves up" << std::endl;
 		
 		heightOffset += 0.02f;
 		createSquare();
 		break;
 	case 'd':
-		std::cout << "Top face of the cube moves down";
+		std::cout << "Top face of the cube moves down" << std::endl;
 		heightOffset -= 0.02f;
 		createSquare();
+		break;
+	case 'f':
+		std::cout << "Toggle fire coloration : ";
+		shouldColorFire = !shouldColorFire;
+		if (!shouldColorFire)
+		{
+			std::cout << "No fire coloration" << std::endl;
+		}
+		else
+		{
+			std::cout << "Fire coloration enabled" << std::endl;
+		}
+		break;
+	case 'g':
+		std::cout << "Toggle fire coloration with distance: ";
+		shouldColorLightingWithDistance = !shouldColorLightingWithDistance;
+		glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
+		ShaderProgram::set("coloration_with_distance", shouldColorLightingWithDistance, lightingProgramID); TEST_OPENGL_ERROR();
+		glUseProgram(0); TEST_OPENGL_ERROR();
+		if (!shouldColorLightingWithDistance)
+		{
+			std::cout << "No fire coloration with distance" << std::endl;
+		}
+		else
+		{
+			std::cout << "Fire coloration with distance enabled" << std::endl;
+		}
 		break;
 	}
 }
@@ -417,28 +445,10 @@ glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
 {
 	float proportion = (float)numberOfParticlesInCell / (float)PARTICLE_NUMBER * pow(8.0, depth) / 2.0f;
 	glm::vec3 color = glm::vec3(1.0f);
-
-	//return glm::vec3(1.0f);
-	/*if (proportion > 2.0f / 3.0f)
+	if (!shouldColorFire)
 	{
-		color.z = glm::clamp((proportion - 2.0f / 3.0f) * 3.0f, 0.0f, 1.0f);
-		color.x = 1.0f;
-		color.y = 1.0f;
 		return color;
 	}
-	else if (proportion > 1.0f / 3.0f)
-	{
-		color.y = glm::clamp((proportion - 1.0f / 3.0f) * 3.0f, 0.0f, 1.0f);
-		color.x = 1.0f;
-		color.z = 0.0f;
-		return color;
-	}
-	else
-	{
-		color.y = 0.0f;
-		color.z = 0.0f;
-		color.x = glm::clamp(proportion * 3.0f, 0.0f, 1.0f);
-	}*/
 	if (proportion > 4.0f / 6.0f)
 	{
 		color.z = glm::clamp((proportion - 4.0f / 6.0f) * 6.0f / 2.0f, 0.0f, 1.0f);
@@ -966,7 +976,6 @@ void initScene()
 	int sphere_resolution = 100;
 
 	spheres.push_back(new Sphere(0.1, Vec(-0.5, 0.0, 0.0), Vec(1.0, 1.0, 1.0), Vec(1.0, 0.0, 0.0), Refl_t::DIFFUSE, -1));
-	spheres.push_back(new Sphere(0.2, Vec(0.3, 0.3, 0.3), Vec(1.0, 1.0, 1.0), Vec(0.0, 1.0, 0.0), Refl_t::DIFFUSE, -1));
 	spheres.push_back(new Sphere(0.2, Vec(-0.1, -0.4, 0.0), Vec(1.0, 1.0, 1.0), Vec(0.0, 0.0, 1.0), Refl_t::DIFFUSE, -1));
 
 	spherePositions.resize(NUMBER_OF_SPHERE);
@@ -1079,7 +1088,6 @@ void writeFloat(std::ofstream& file, float val) {
 
 void writeFrameInFile(std::ofstream &out)
 {
-	std::cout << "writeFrameInFile " << fluid->GetParticles()[0]->GetPosition().x << std::endl;
 	writeInt(out, fluid->GetParticles().size());
 	for (int i = 0; i < fluid->GetParticles().size(); i++)
 	{
@@ -1148,7 +1156,7 @@ void update(float currentTime, bool realTimeSimulation)
 	cellIntensity = 0.0f;
 	frameNumber += 1;
 
-	glm::vec3 sphereNewPosition = glm::vec3(0.5f * cos(currentTime/10000.0f), 0.0f, 0.5f * sin(currentTime/10000.0f));
+	glm::vec3 sphereNewPosition = glm::vec3(0.5f * cos(currentTime/100000.0f), 0.0f, 0.5f * sin(currentTime/100000.0f));
 	translateSphere(sphereNewPosition - glm::vec3(spheres[0]->p.x, spheres[0]->p.y, spheres[0]->p.z), 0);
 	spheres[0]->p = Vec(sphereNewPosition.x, sphereNewPosition.y, sphereNewPosition.z);
 
@@ -1163,7 +1171,7 @@ void update(float currentTime, bool realTimeSimulation)
 	}
 	else
 	{
-		timeFactor = 0.01f;
+		timeFactor = 0.005f;
 	}
 
 	if (shouldPlayRegisteredSimulation)
@@ -1205,9 +1213,9 @@ void update(float currentTime, bool realTimeSimulation)
 	else
 	{
 		glm::vec3 maxSpeed = regularGrids[regularGrids.size() - 1]->UpdateSpeedOfCells();
-		currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor, 2.0f * CUBE_SIZE);
-		currentSizeOfGrid[1] = glm::min(currentSizeOfGrid[1] + maxSpeed[1] * timeFactor, 2.0f * CUBE_SIZE);
-		currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor, 2.0f * CUBE_SIZE);
+		currentSizeOfGrid[0] = glm::min(currentSizeOfGrid[0] + maxSpeed[0] * timeFactor * 2.0f, 2.0f * CUBE_SIZE);
+		currentSizeOfGrid[1] = glm::min(currentSizeOfGrid[1] + maxSpeed[1] * timeFactor * 2.0f, 2.0f * CUBE_SIZE);
+		currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor * 2.0f, 2.0f * CUBE_SIZE);
 
 		fluid->UpdateParticlePositions(timeFactor * CUBE_SIZE, CUBE_SIZE);
 		if (shouldGenerateNewParticlesEachFrame && fluid->GetParticles().size() + PARTICLE_NUMBER * 0.01 < 10 * PARTICLE_NUMBER)
@@ -1325,8 +1333,19 @@ void updateUBO()
 	glBindBuffer(GL_UNIFORM_BUFFER, m_particleUBO); TEST_OPENGL_ERROR();
 	glm::vec4 actualNumberOfCells[1] = { glm::vec4(lightSources.size() - 1, 0.0f, 0.0f, 0.0f) };
 	GLsizei sizeOfArray = glm::min(lightSources.size() - 1, (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) * sizeof(LightSource);
+	if (!shouldRenderLighting)
+	{
+		GLsizei sizeOfArray = glm::min(lightSources.size(), (unsigned int)REAL_TIME_LIGHT_MAXIMUM_NUMBER) * sizeof(LightSource);
+	}
 	GLsizei sizeBlendingRadiusArray = blendingRadius.size() * sizeof(glm::vec4);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[1])); TEST_OPENGL_ERROR();
+	if (!shouldRenderLighting)
+	{
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[0])); TEST_OPENGL_ERROR();
+	}
+	else
+	{
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeOfArray, &(lightSources[1])); TEST_OPENGL_ERROR();
+	}
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray, sizeof(glm::vec4), &(actualNumberOfCells)); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4), sizeOfSphereArray, &(spherePositionAndRadius[0])); TEST_OPENGL_ERROR();
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeOfArray + sizeof(glm::vec4) + sizeOfSphereArray, sizeof(glm::vec4), &(actualNumberOfSpheres)); TEST_OPENGL_ERROR();
@@ -1439,7 +1458,7 @@ void render()
 	}
 
 
-	if (shouldRenderLighting && drawCellCenter)
+	if (drawCellCenter)
 	{
 		drawCellVAO();
 	}

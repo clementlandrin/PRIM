@@ -12,6 +12,8 @@ struct LightSource
 uniform mat4 model_view_matrix;
 uniform mat4 projection_matrix;
 
+uniform bool coloration_with_distance;
+
 uniform vec4 albedo;
 
 uniform int depth_to_display;
@@ -27,7 +29,7 @@ const int MY_ARRAY_SIZE = 584; // either 1, 9, 73 or 585
 layout (std140, binding = 0) uniform lightSourcesBlock {
   LightSource myArray [MY_ARRAY_SIZE]; // This is the important name (in the shader).
   vec4 number_of_lights;
-  vec4 spheres [3];
+  vec4 spheres [2];
   vec4 number_of_spheres;
   vec4 blendingRadius [4];
   vec4 number_of_radius;
@@ -62,8 +64,11 @@ bool intersect(vec3 rayOrigin, vec3 pixelPosition, vec3 center, float radius)
 vec3 computeFireColor(float distance)
 {
 	vec3 color = vec3(1.0);
-
-	float radius[3] = { 1.0, 3.0, 10.0 };
+	if (!coloration_with_distance)
+	{
+		return color;
+	}
+	float radius[3] = { 2.0, 4.0, 10.0 };
 
 	if (distance < radius[0])
 	{
