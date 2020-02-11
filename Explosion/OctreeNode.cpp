@@ -65,6 +65,10 @@ OctreeNode * OctreeNode::BuildOctree(int depth, int maxDepth, Cell* cell, int po
 
 	if(depth>maxDepth)
 	{
+		for (int i = 0; i < nodePtr->GetCell()->GetParticles().size(); i++)
+		{
+			nodePtr->GetCell()->GetParticles()[i]->SetDeepestCell(nodePtr->GetCell());
+		}
 		nodePtr->SetIsALeaf(true);
 	}
 	else

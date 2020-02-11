@@ -32,7 +32,7 @@
 #define REAL_TIME_LIGHT_MAXIMUM_NUMBER 585
 
 #define VISCOSITY 0.1f
-#define DENSITY 1.0f // Stands for inertie
+#define DENSITY 0.05f // Stands for inertie
 #define PARTICLE_NUMBER 1000//15000
 #define FLUID_PROPORTION_IN_CUBE 0.05f
 #define CUBE_SIZE 0.75f
@@ -57,8 +57,8 @@ int frameNumber = 0;
 
 bool shouldGenerateNewParticlesEachFrame = false;
 bool shouldRenderLighting = true;
-bool shouldRegisterSimulation = true;
-bool shouldPlayRegisteredSimulation = false;
+bool shouldRegisterSimulation = false;
+bool shouldPlayRegisteredSimulation = true;
 bool shouldColorLightingWithDistance = true;
 bool shouldColorFire = true;
 
@@ -235,7 +235,7 @@ GLuint cellProgramID;
 
 float cellIntensity = 0.0f;
 
-glm::vec3 currentSizeOfGrid = glm::vec3(FLUID_PROPORTION_IN_CUBE*CUBE_SIZE*2.0);
+glm::vec3 currentSizeOfGrid = glm::vec3(2.0*FLUID_PROPORTION_IN_CUBE*CUBE_SIZE*2.0);
 
 #define TEST_OPENGL_ERROR()                                                             \
   do {		  							\
@@ -443,32 +443,36 @@ void initParticleVbo()
 
 glm::vec3 computeFireColor(int depth, int numberOfParticlesInCell)
 {
-	float proportion = (float)numberOfParticlesInCell / (float)PARTICLE_NUMBER * pow(8.0, depth) / 2.0f;
+	float proportion = (float)numberOfParticlesInCell / (float)PARTICLE_NUMBER * pow(8.0, depth) / 2.0f; //* pow(8.0, depth) / 2.0f;
 	glm::vec3 color = glm::vec3(1.0f);
 	if (!shouldColorFire)
 	{
 		return color;
 	}
-	if (proportion > 4.0f / 6.0f)
+	if (proportion > 6.0f / 8.0f)
 	{
-		color.z = glm::clamp((proportion - 4.0f / 6.0f) * 6.0f / 2.0f, 0.0f, 1.0f);
+		color.z = glm::clamp((proportion - 6.0f / 8.0f) * 8.0f / 2.0f, 0.0f, 1.0f);
 		color.x = 1.0f;
 		color.y = 1.0f;
 		return color;
 	}
-	else if (proportion > 2.0f / 6.0f)
+	else if (proportion > 4.0f / 8.0f)
 	{
-		color.y = glm::clamp((proportion - 2.0f / 6.0f) * 6.0f / 2.0f, 0.0f, 1.0f);
+		color.y = glm::clamp((proportion - 4.0f / 8.0f) * 8.0f / 2.0f, 0.0f, 1.0f);
 		color.x = 1.0f;
 		color.z = 0.0f;
 		return color;
 	}
-	else
+	else if (proportion > 2.0f / 8.0f)
 	{
 		color.y = 0.0f;
 		color.z = 0.0f;
-		color.x = glm::clamp(proportion * 6.0f / 2.0f, 0.0f, 1.0f);
+		color.x = glm::clamp((proportion - 2.0f / 8.0f) * 8.0f / 2.0f, 0.0f, 1.0f);
 		return color;
+	}
+	else
+	{
+		return glm::vec3(0.0f);
 	}
 }
 
@@ -1020,13 +1024,13 @@ void initScene()
 	blendingRadius[0] = glm::vec4(1.2f, 0.0f, 0.0f, 0.0f);
 	if (blendingRadius.size() > 1)
 	{
-		blendingRadius[1] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
+		blendingRadius[1] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 		if (blendingRadius.size() > 2)
 		{
-			blendingRadius[2] = glm::vec4(0.6f, 0.0f, 0.0f, 0.0f);
+			blendingRadius[2] = glm::vec4(0.8f, 0.0f, 0.0f, 0.0f);
 			if (blendingRadius.size() > 3)
 			{
-				blendingRadius[3] = glm::vec4(0.3f, 0.0f, 0.0f, 0.0f);
+				blendingRadius[3] = glm::vec4(0.6f, 0.0f, 0.0f, 0.0f);
 			}
 		}
 	}
@@ -1041,6 +1045,7 @@ void initShaders()
 
 	glUseProgram(lightingProgramID); TEST_OPENGL_ERROR();
 	ShaderProgram::set("depth_to_display", depthToDisplay, lightingProgramID); TEST_OPENGL_ERROR();
+	ShaderProgram::set("coloration_with_distance", shouldColorLightingWithDistance, lightingProgramID); TEST_OPENGL_ERROR();
 	glUseProgram(0); TEST_OPENGL_ERROR();
 
 	updateUniformMatrixOfShaders();
@@ -1171,7 +1176,7 @@ void update(float currentTime, bool realTimeSimulation)
 	}
 	else
 	{
-		timeFactor = 0.005f;
+		timeFactor = 0.0005f;
 	}
 
 	if (shouldPlayRegisteredSimulation)
@@ -1181,17 +1186,14 @@ void update(float currentTime, bool realTimeSimulation)
 
 		if (in.good())
 		{
-			while (frameNumber % 10 != 0)
+			/*while (frameNumber % 10 != 0)
 			{
 				skipFrameInFile(in);
-			}
+			}*/
 			if (!readFrameInFile(in))
 			{
 				in.close();
-				while (1)
-				{
-					//std::cout << "Cannot read file" << std::endl;
-				}
+				in.open(SIMULATION_FILE_NAME, std::ios_base::binary);
 			}
 		}
 
@@ -1218,6 +1220,7 @@ void update(float currentTime, bool realTimeSimulation)
 		currentSizeOfGrid[2] = glm::min(currentSizeOfGrid[2] + maxSpeed[2] * timeFactor * 2.0f, 2.0f * CUBE_SIZE);
 
 		fluid->UpdateParticlePositions(timeFactor * CUBE_SIZE, CUBE_SIZE);
+
 		if (shouldGenerateNewParticlesEachFrame && fluid->GetParticles().size() + PARTICLE_NUMBER * 0.01 < 10 * PARTICLE_NUMBER)
 		{
 			generateParticles(PARTICLE_NUMBER * 0.01);
@@ -1237,6 +1240,7 @@ void update(float currentTime, bool realTimeSimulation)
 
 		regularGrids[regularGrids.size() - 1]->UpdateGradientAndVGradVOfCells();
 		regularGrids[regularGrids.size() - 1]->UpdateLaplacianOfCells();
+		regularGrids[regularGrids.size() - 1]->UpdateSpeedVariationNavierStokes(fluid);
 		regularGrids[regularGrids.size() - 1]->PushNavierStokesParametersToParticles();
 
 		if (fluid->GetParticles().size() < PARTICLE_NUMBER * 0.1 || (SIMULATION_MAX_DURATION != 0.0f && currentTime - zeroTimeOfSimulation > SIMULATION_MAX_DURATION))

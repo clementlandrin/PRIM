@@ -4,6 +4,7 @@
 #include "External/glm/glm/glm.hpp"
 
 class Cell;
+class Fluid;
 
 class RegularGrid
 {
@@ -21,6 +22,7 @@ public:
 	glm::vec3 UpdateSpeedOfCells();
 	void UpdateGradientAndVGradVOfCells();
 	void UpdateLaplacianOfCells();
+	void UpdateSpeedVariationNavierStokes(Fluid* fluid);
 
 	void ResizeGrid(glm::vec3 size);
 

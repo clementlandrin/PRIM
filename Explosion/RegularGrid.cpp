@@ -1,6 +1,7 @@
 #include "RegularGrid.h"
 
 #include "Cell.hpp"
+#include "Fluid.hpp"
 
 RegularGrid::RegularGrid(int resolution, glm::vec3 size)
 {
@@ -104,6 +105,20 @@ void RegularGrid::UpdateLaplacianOfCells()
 	}
 }
 
+void RegularGrid::UpdateSpeedVariationNavierStokes(Fluid* fluid)
+{
+	for (int i = 0; i < m_Resolution; i++)
+	{
+		for (int j = 0; j < m_Resolution; j++)
+		{
+			for (int k = 0; k < m_Resolution; k++)
+			{
+				m_Cells[i][j][k]->UpdateSpeedVariation(fluid);
+			}
+		}
+	}
+	
+}
 void RegularGrid::PushNavierStokesParametersToParticles()
 {
 	for (int i = 0; i < m_Resolution; i++)

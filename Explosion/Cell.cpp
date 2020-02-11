@@ -1,6 +1,8 @@
 #include "Cell.hpp"
 
 #include "Particle.hpp"
+#include "Fluid.hpp"
+
 #include "RegularGrid.h"
 #include <iostream>
 
@@ -107,6 +109,65 @@ const Cell* Cell::GetParent()
 const glm::vec3 Cell::GetSpeed()
 {
 	return m_Speed;
+}
+
+const glm::vec3 Cell::GetSpeedVariation()
+{
+	return m_SpeedVariation;
+}
+
+const glm::vec3 Cell::GetSpeedVariationInterpolated(Particle* particle)
+{
+	Cell* front_cell = GetOnFrontCell();
+	Cell* back_cell = GetOnBackCell();
+	Cell* top_cell = GetOnTopCell();
+	Cell* bottom_cell = GetOnBottomCell();
+	Cell* left_cell = GetOnLeftCell();
+	Cell* right_cell = GetOnRightCell();
+
+	glm::vec3 speed_front_cell = front_cell ? front_cell->GetSpeedVariation() : glm::vec3(0.0);
+	glm::vec3 speed_back_cell = back_cell ? back_cell->GetSpeedVariation() : glm::vec3(0.0);
+	glm::vec3 speed_top_cell = top_cell ? top_cell->GetSpeedVariation() : glm::vec3(0.0);
+	glm::vec3 speed_bottom_cell = bottom_cell ? bottom_cell->GetSpeedVariation() : glm::vec3(0.0);
+	glm::vec3 speed_left_cell = left_cell ? left_cell->GetSpeedVariation() : glm::vec3(0.0);
+	glm::vec3 speed_right_cell = right_cell ? right_cell->GetSpeedVariation() : glm::vec3(0.0);
+
+	glm::vec3 particle_position = particle->GetPosition();
+
+	glm::vec3 interpolated_speed = glm::vec3(0.0f);
+
+	float onX = (particle_position.x - m_Position.x) / m_RegularGrid->GetSize().x;
+	float onY = (particle_position.y - m_Position.y) / m_RegularGrid->GetSize().y;
+	float onZ = (particle_position.z - m_Position.z) / m_RegularGrid->GetSize().z;
+
+	if (onX >= 0.0f)
+	{
+		interpolated_speed.x = onX * GetSpeedVariation().x + (1 - onX) * speed_right_cell.x;
+	}
+	else
+	{
+		interpolated_speed.x = onX * GetSpeedVariation().x + (1 - abs(onX)) * speed_left_cell.x;
+	}
+
+	if (onY >= 0.0f)
+	{
+		interpolated_speed.y = onY * GetSpeedVariation().y + (1 - onY) * speed_right_cell.y;
+	}
+	else
+	{
+		interpolated_speed.y = onY * GetSpeedVariation().y + (1 - abs(onY)) * speed_left_cell.y;
+	}
+
+	if (onZ >= 0.0f)
+	{
+		interpolated_speed.z = onZ * GetSpeedVariation().z + (1 - onZ) * speed_right_cell.z;
+	}
+	else
+	{
+		interpolated_speed.z = onZ * GetSpeedVariation().z + (1 - abs(onZ)) * speed_left_cell.z;
+	}
+
+	return interpolated_speed;
 }
 
 const glm::vec3 Cell::GetGradient()
@@ -297,13 +358,13 @@ void Cell::ComputeGradientAndVGradV()
 		speed_right_cell = right_cell->GetSpeed();
 	}
 
-	glm::vec3 onX = (speed_right_cell - speed_left_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
-	glm::vec3 onY = (speed_top_cell - speed_bottom_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
-	glm::vec3 onZ = (speed_back_cell - speed_front_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
+	glm::vec3 onX = (speed_right_cell - speed_left_cell)* 0.5f;// *(float)m_RegularGrid->GetSize().x;
+	glm::vec3 onY = (speed_top_cell - speed_bottom_cell)* 0.5f;// *(float)m_RegularGrid->GetSize().y;
+	glm::vec3 onZ = (speed_back_cell - speed_front_cell)* 0.5f;// *(float)m_RegularGrid->GetSize().z;
 
-	float densityOnX = (density_right_cell - density_left_cell) * 0.5f * (float)m_RegularGrid->GetResolution();
-	float densityOnY = (density_top_cell - density_bottom_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
-	float densityOnZ = (density_back_cell - density_front_cell)* 0.5f *(float)m_RegularGrid->GetResolution();
+	float densityOnX = (density_right_cell - density_left_cell) * 0.5f;// *(float)m_RegularGrid->GetSize().x;
+	float densityOnY = (density_top_cell - density_bottom_cell)* 0.5f;// *(float)m_RegularGrid->GetSize().y;
+	float densityOnZ = (density_back_cell - density_front_cell)* 0.5f;// *(float)m_RegularGrid->GetSize().z;
 
 	m_Gradient = glm::vec3(onX.x, onY.y, onZ.z);
 
@@ -362,9 +423,9 @@ void Cell::ComputeLaplacian()
 		gradient_right_cell = right_cell->GetGradient();
 	}
 
-	glm::vec3 onX = (gradient_right_cell - gradient_left_cell) * 0.5f *(float)m_RegularGrid->GetResolution();
-	glm::vec3 onY = (gradient_top_cell - gradient_bottom_cell) * 0.5f*(float)m_RegularGrid->GetResolution();
-	glm::vec3 onZ = (gradient_back_cell - gradient_front_cell) * 0.5f*(float)m_RegularGrid->GetResolution();
+	glm::vec3 onX = (gradient_right_cell - gradient_left_cell) * 0.5f;// *(float)m_RegularGrid->GetSize().x;
+	glm::vec3 onY = (gradient_top_cell - gradient_bottom_cell) * 0.5f;// *(float)m_RegularGrid->GetSize().y;
+	glm::vec3 onZ = (gradient_back_cell - gradient_front_cell) * 0.5f;// *(float)m_RegularGrid->GetSize().z;
 
 	m_Laplacian = glm::vec3(onX.x + onY.x + onZ.x, onX.y + onY.y + onZ.y, onX.z + onY.z + onZ.z);
 }
@@ -388,6 +449,11 @@ void Cell::ResetNavierStokesParameters()
 	m_PressureGradient = glm::vec3(0.0);
 }
 
-const glm::vec3 Particle::GetLaplacian() { return m_Laplacian; }
-const glm::vec3 Particle::GetVGradV() { return m_VGradV; }
-const glm::vec3 Particle::GetPressureGradient() { return m_PressureGradient; }
+void Cell::UpdateSpeedVariation(Fluid* fluid)
+{
+	m_SpeedVariation = (0.0f * glm::vec3(0.0f, -9.81f, 0.0f) + 0.0f * fluid->GetViscosity() * GetLaplacian() - 100.0f / fluid->GetParticles().size() * GetPressureGradient() - 0.0f * GetVGradV()) / fluid->GetDensity(); // VGradV a 0.5f
+}
+
+const glm::vec3 Cell::GetLaplacian() { return m_Laplacian; }
+const glm::vec3 Cell::GetVGradV() { return m_VGradv; }
+const glm::vec3 Cell::GetPressureGradient() { return m_PressureGradient; }

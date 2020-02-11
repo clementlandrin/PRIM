@@ -21,7 +21,9 @@ public:
   const glm::vec3 GetLaplacian();
   const glm::vec3 GetVGradV();
   const glm::vec3 GetPressureGradient();
+  Cell* GetDeepestCell();
 
+  void SetDeepestCell(Cell* cell);
   void SetPosition(glm::vec3 position);
   void SetSpeed(glm::vec3 speed);
   void SetGradient(glm::vec3 new_gradient);
@@ -31,6 +33,7 @@ public:
   void SetEnergy(float energy);
   void AddCell(Cell* cell);
 private:
+  Cell* m_DeepestCell;
   glm::vec3 m_Position;
   glm::vec3 m_Speed;
   float m_Energy;

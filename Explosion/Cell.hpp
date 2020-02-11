@@ -7,7 +7,7 @@
 #include <vector>
 
 class Particle;
-
+class Fluid;
 class RegularGrid;
 
 class Cell
@@ -27,6 +27,8 @@ public:
 	void PushNavierStokesParameters();
 	void ResetNavierStokesParameters();
 
+	void UpdateSpeedVariation(Fluid* fluid);
+
   	std::vector<Particle*> GetParticles();
 	const glm::vec3 GetPosition();
   	const float GetCellWidth();
@@ -36,6 +38,10 @@ public:
 	const Cell* GetParent();
 	const glm::vec3 GetSpeed();
 	const glm::vec3 GetGradient();
+	const glm::vec3 GetSpeedVariation();
+
+	const glm::vec3 GetSpeedVariationInterpolated(Particle* particle);
+
 
 	const glm::vec3 GetLaplacian();
 	const glm::vec3 GetVGradV();
@@ -70,6 +76,7 @@ private:
 	glm::vec3 m_Laplacian;
 	glm::vec3 m_VGradv;
 	glm::vec3 m_PressureGradient;
+	glm::vec3 m_SpeedVariation;
 };
 
 #endif /* CELL_HPP */

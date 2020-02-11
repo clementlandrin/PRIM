@@ -41,14 +41,15 @@ void Fluid::GenerateParticlesUniformly(int particleNumber, glm::vec3 origin, flo
 	position = glm::vec3(x, y, z);
 	position = glm::normalize(position);
 	position = position * length;
-	initialSpeed = glm::normalize(position);
+	initialSpeed = glm::normalize(position) * 10.0f;
 	initialSpeed.y = 50.0f;
+	initialSpeed.x += 10.0f;
 	initialSpeed = initialSpeed * speedFactor;
 
 	position = position * glm::vec3(width*0.5, height*0.5, depth*0.5);
 	position = position + origin;
 
-    Particle* particle = new Particle(position, 1.0f/particleNumber);
+    Particle* particle = new Particle(position, particleNumber);
     particle->SetSpeed(initialSpeed);
 
     m_Particles.push_back(particle);
@@ -74,7 +75,7 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBound
 {
   for (int i = 0; i < m_Particles.size(); i++)
   {
-	m_Particles[i]->SetSpeed(m_Particles[i]->GetSpeed() + dt * SpeedVariationByNavierStokes(m_Particles[i]));
+	  m_Particles[i]->SetSpeed(m_Particles[i]->GetSpeed() + dt * SpeedVariationByNavierStokes(m_Particles[i]));//GetDeepestCell()->GetSpeedVariation());//Interpolated(m_Particles[i]));
 	glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed();
 
 	if (PositionIsInCube(newPosition, cubeSize))
@@ -83,8 +84,8 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBound
 	}
 	else if (!bounceOnBounds)
 	{
-	 /* delete m_Particles[i];
-	  m_Particles.erase(m_Particles.begin() + i);*/
+	 delete m_Particles[i];
+	 m_Particles.erase(m_Particles.begin() + i);
 	}
 	else
 	{
@@ -102,13 +103,8 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBound
 
 glm::vec3 Fluid::SpeedVariationByNavierStokes(Particle* particle)
 {
-	return (glm::vec3(0.0f, -9.81f, 0.0f) + GetViscosity() * particle->GetLaplacian() - 1.0f * particle->GetPressureGradient() - 1.0f * particle->GetVGradV()) / GetDensity();
+	return (0.0f * glm::vec3(0.0f, -9.81f, 0.0f) + 1.0f * GetViscosity() * particle->GetLaplacian() - 1000.0f * particle->GetPressureGradient() - 1.0f * particle->GetVGradV()) / GetDensity(); // vgradv a 1.0
 	//return (m_Viscosity * particle->GetLaplacian() - particle->GetVGradV() + 0.3f * glm::vec3(0.0f, -9.81f, 0.0f))/m_Viscosity - 0.01f * particle->GetPressureGradient();
-}
-
-glm::vec3 Fluid::SpeedVariationByNavierStokesByCell(Cell* cell)
-{
-	return (glm::vec3(0.0f, -9.81f, 0.0f) + GetViscosity() * cell->GetLaplacian() - 1.0f * cell->GetPressureGradient() - 1.0f * cell->GetVGradV()) / GetDensity();
 }
 
 const float Fluid::GetViscosity() { return m_Viscosity; }
