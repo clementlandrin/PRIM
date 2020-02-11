@@ -112,7 +112,7 @@ float blendFunction(float distance, int depth)
 	{
 		return factor * 1.0;
 	}
-	else if (depth == 0 && distance >= blendingRadius[depth].x)
+	else if (depth == 1 && distance >= blendingRadius[depth].x)
 	{
 		return factor * 1.0;
 	}
@@ -133,8 +133,8 @@ float fallOfTerm(float distance)
 {
 	distance *= 2.0;
 	float constant = 1.0;
-	float linear = 3;
-	float quadratic = 3;
+	float linear = 10.0;
+	float quadratic = 5.0;
 	return 20.0f / (constant + linear * distance + quadratic * pow(distance, 2.0));
 }
 

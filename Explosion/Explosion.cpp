@@ -14,7 +14,7 @@
 #include <vector>
 #include <algorithm>
 
-#define SIMULATION_FILE_NAME "simulation_4.txt"
+#define SIMULATION_FILE_NAME "simulation_2.txt"
 
 #include "Particle.hpp"
 #include "Fluid.hpp"
@@ -33,16 +33,16 @@
 
 #define VISCOSITY 0.1f
 #define DENSITY 0.05f // Stands for inertie
-#define PARTICLE_NUMBER 1000//15000
-#define FLUID_PROPORTION_IN_CUBE 0.05f
+#define PARTICLE_NUMBER 5000//15000
+#define FLUID_PROPORTION_IN_CUBE 0.20f
 #define CUBE_SIZE 0.75f
-#define RESOLUTION 16
+#define RESOLUTION 8
 #define SIMULATION_MAX_DURATION 0.0f//20000.0f
 
 #define NUMBER_OF_SPHERE 2
 
 float heightOffset = 0.0f;
-
+float lateralOffset = 0.0f;
 int depthToDisplay = -1;
 
 bool drawCellCenter = false;
@@ -377,6 +377,16 @@ void keyboardCallback(unsigned char key, int x, int y)
 		heightOffset -= 0.02f;
 		createSquare();
 		break;
+	case 'l':
+		std::cout << "Left face of the cube moves left" << std::endl;
+		lateralOffset += 0.02f;
+		createSquare();
+		break;
+	case 'r':
+		std::cout << "Left face of the cube moves right" << std::endl;
+		lateralOffset -= 0.02f;
+		createSquare();
+		break;
 	case 'f':
 		std::cout << "Toggle fire coloration : ";
 		shouldColorFire = !shouldColorFire;
@@ -676,11 +686,11 @@ void bottomFace(int offset, float size)
 	squarePositions[1 + offset] = heightOffset * size;
 	squarePositions[2 + offset] = -1.0f * size;
 
-	squarePositions[3 + offset] = -1.0f * size;
+	squarePositions[3 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[4 + offset] = heightOffset * size;
 	squarePositions[5 + offset] = -1.0f * size;
 
-	squarePositions[6 + offset] = -1.0f * size;
+	squarePositions[6 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[7 + offset] = heightOffset * size;
 	squarePositions[8 + offset] = 1.0f * size;
 
@@ -688,7 +698,7 @@ void bottomFace(int offset, float size)
 	squarePositions[10 + offset] = heightOffset * size;
 	squarePositions[11 + offset] = -1.0f * size;
 
-	squarePositions[12 + offset] = -1.0f * size;
+	squarePositions[12 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[13 + offset] = heightOffset * size;
 	squarePositions[14 + offset] = 1.0f * size;
 
@@ -706,27 +716,27 @@ void bottomFace(int offset, float size)
 
 void leftFace(int offset, float size)
 {
-	squarePositions[0 + offset] = -1.0f * size;
+	squarePositions[0 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[1 + offset] = 1.0f * size;
 	squarePositions[2 + offset] = -1.0f * size;
 
-	squarePositions[3 + offset] = -1.0f * size;
+	squarePositions[3 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[4 + offset] = 1.0f * size;
 	squarePositions[5 + offset] = 1.0f * size;
 
-	squarePositions[6 + offset] = -1.0f * size;
+	squarePositions[6 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[7 + offset] = heightOffset * size;
 	squarePositions[8 + offset] = -1.0f * size;
 
-	squarePositions[9 + offset] = -1.0f * size;
+	squarePositions[9 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[10 + offset] = heightOffset * size;
 	squarePositions[11 + offset] = -1.0f * size;
 
-	squarePositions[12 + offset] = -1.0f * size;
+	squarePositions[12 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[13 + offset] = 1.0f * size;
 	squarePositions[14 + offset] = 1.0f * size;
 
-	squarePositions[15 + offset] = -1.0f * size;
+	squarePositions[15 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[16 + offset] = heightOffset * size;
 	squarePositions[17 + offset] = 1.0f * size;
 
@@ -774,11 +784,11 @@ void rightFace(int offset, float size)
 
 void topFace(int offset, float size)
 {
-	squarePositions[0 + offset] = -1.0f * size;
+	squarePositions[0 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[1 + offset] = 1.0f * size;
 	squarePositions[2 + offset] = 1.0f * size;
 
-	squarePositions[3 + offset] = -1.0f * size;
+	squarePositions[3 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[4 + offset] = 1.0f * size;
 	squarePositions[5 + offset] = -1.0f * size;
 
@@ -786,7 +796,7 @@ void topFace(int offset, float size)
 	squarePositions[7 + offset] = 1.0f * size;
 	squarePositions[8 + offset] = -1.0f * size;
 
-	squarePositions[9 + offset] = -1.0f * size;
+	squarePositions[9 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[10 + offset] = 1.0f * size;
 	squarePositions[11 + offset] = 1.0f * size;
 
@@ -808,11 +818,11 @@ void topFace(int offset, float size)
 
 void backFace(int offset, float size)
 {
-	squarePositions[0 + offset] = -1.0f * size;
+	squarePositions[0 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[1 + offset] = 1.0f * size;
 	squarePositions[2 + offset] = -1.0f * size;
 
-	squarePositions[3 + offset] = -1.0f * size;
+	squarePositions[3 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[4 + offset] = heightOffset * size;
 	squarePositions[5 + offset] = -1.0f * size;
 
@@ -820,7 +830,7 @@ void backFace(int offset, float size)
 	squarePositions[7 + offset] = heightOffset * size;
 	squarePositions[8 + offset] = -1.0f * size;
 
-	squarePositions[9 + offset] = -1.0f * size;
+	squarePositions[9 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[10 + offset] = 1.0f * size;
 	squarePositions[11 + offset] = -1.0f * size;
 
@@ -846,7 +856,7 @@ void frontFace(int offset, float size)
 	squarePositions[1 + offset] = heightOffset * size;
 	squarePositions[2 + offset] = 1.0f * size;
 
-	squarePositions[3 + offset] = -1.0f * size;
+	squarePositions[3 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[4 + offset] = heightOffset * size;
 	squarePositions[5 + offset] = 1.0f * size;
 
@@ -858,11 +868,11 @@ void frontFace(int offset, float size)
 	squarePositions[10 + offset] = 1.0f * size;
 	squarePositions[11 + offset] = 1.0f * size;
 
-	squarePositions[12 + offset] = -1.0f * size;
+	squarePositions[12 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[13 + offset] = heightOffset * size;
 	squarePositions[14 + offset] = 1.0f * size;
 
-	squarePositions[15 + offset] = -1.0f * size;
+	squarePositions[15 + offset] = -1.0f * size + lateralOffset * size;
 	squarePositions[16 + offset] = 1.0f * size;
 	squarePositions[17 + offset] = 1.0f * size;
 
@@ -1012,6 +1022,7 @@ void initScene()
 		regularGrids.push_back(new RegularGrid(pow(2, i), currentSizeOfGrid));
 	}
 	regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
+	regularGrids[0]->GetCells()[0][0][0]->UpdateSpeed();
 
 	blendingRadius.resize(clamped_power_of_two_resolution + 1);
 
@@ -1186,7 +1197,7 @@ void update(float currentTime, bool realTimeSimulation)
 
 		if (in.good())
 		{
-			/*while (frameNumber % 10 != 0)
+			/*while (frameNumber % 1 != 0)
 			{
 				skipFrameInFile(in);
 			}*/
@@ -1271,6 +1282,10 @@ void update(float currentTime, bool realTimeSimulation)
 
 	if (shouldRegisterSimulation)
 	{
+		for (int i = 0; i < regularGrids.size(); i++)
+		{
+			regularGrids[i]->ResizeGrid(currentSizeOfGrid);
+		}
 		regularGrids[0]->GetCells()[0][0][0]->SetParticles(fluid->GetParticles());
 
 		octreeRoot->SetCell(regularGrids[0]->GetCells()[0][0][0]);
@@ -1280,11 +1295,6 @@ void update(float currentTime, bool realTimeSimulation)
 		cellDepth.clear();
 		cellPositions.clear();
 		UpdateCellVectors(octreeRoot, false, true);
-
-		for (int i = 0; i < regularGrids.size(); i++)
-		{
-			regularGrids[i]->ResizeGrid(currentSizeOfGrid);
-		}
 	}
 
 }
@@ -1759,7 +1769,7 @@ void computeRayTracedImage()
 	{
 		spheres.push_back(new Sphere(CUBE_SIZE / pow(2, lightSources[i].depth.x),
 			Vec(lightSources[i].position.x, lightSources[i].position.y, lightSources[i].position.z),
-			1.0 / cellPositionsForRayTracer.size() * 9.0 * Vec(lightSources[i].color_and_intensity.x, lightSources[i].color_and_intensity.y, lightSources[i].color_and_intensity.z),
+			1.0 / cellPositionsForRayTracer.size() * Vec(lightSources[i].color_and_intensity.x, lightSources[i].color_and_intensity.y, lightSources[i].color_and_intensity.z),
 			Vec(lightSources[i].color_and_intensity.x, lightSources[i].color_and_intensity.y, lightSources[i].color_and_intensity.z), EMMISSIVE, lightSources[i].depth.x));
 		lights.push_back(NUMBER_OF_SPHERE + 5 + i);
 	}

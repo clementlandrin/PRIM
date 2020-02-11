@@ -75,7 +75,7 @@ void Fluid::UpdateParticlePositions(float dt, float cubeSize, bool bounceOnBound
 {
   for (int i = 0; i < m_Particles.size(); i++)
   {
-	  m_Particles[i]->SetSpeed(m_Particles[i]->GetSpeed() + dt * SpeedVariationByNavierStokes(m_Particles[i]));//GetDeepestCell()->GetSpeedVariation());//Interpolated(m_Particles[i]));
+	  m_Particles[i]->SetSpeed(10.0f * dt * SpeedVariationByNavierStokes(m_Particles[i]));//GetDeepestCell()->GetSpeedVariation());//Interpolated(m_Particles[i]));
 	glm::vec3 newPosition = m_Particles[i]->GetPosition() + dt * m_Particles[i]->GetSpeed();
 
 	if (PositionIsInCube(newPosition, cubeSize))
